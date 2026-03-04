@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  name      String
+  email     String    @unique
+  password  String
+  startYear DateTime?
+  sumEvent  Int?
+  role      String    @default("user")
+  createdAt DateTime  @default(now())
+
+  members           Member[]           @relation("MemberOwner")
+  createdMembers    Member[]           @relation("MemberCreator")
+  attendancesMarked Attendance[]       @relation("MarkedBy")
+  permissions       ScreenPermission[]
+  gradeCategories   GradeCategory[]
+
+  sessionsCreated   Session[]   
+
+  active    Boolean   @default(true)
+}
+
+
+model Member {
+  id         Int       @id @default(autoincrement())
+  name       String
+  birthDate  DateTime?
+  gender     String?
+  parish     String?
+  church     String?
+  startYear  Int?
+  fatherName String?
+  motherName String?
+  address    String?
+  contact    String?
+  active     Boolean   @default(true)
+  userId     Int?
+  user       User?     @relation("MemberOwner", fields: [userId], references: [id])
+
+  createdById Int?
+  createdBy   User? @relation("MemberCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attendances Attendance[]
+  grades      Grade[]
+}
+
+model Attendance {
+  id         Int      @id @default(autoincrement())
+  date       DateTime
+  status     String
+  note       String?
+  
+  memberId   Int
+  member     Member   @relation(fields: [memberId], references: [id])
+
+  sessionId  Int?
+  session    Session? @relation(fields: [sessionId], references: [id])
+
+  markedById Int?
+  markedBy   User?    @relation("MarkedBy", fields: [markedById], references: [id])
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([date, memberId])
+}
+
+
+model Grade {
+  id         Int           @id @default(autoincrement())
+  score      Float
+  memberId   Int
+  mMember    Member        @relation(fields: [memberId], references: [id])
+  createdAt  DateTime      @default(now())
+  categoryId Int
+  category   GradeCategory @relation(fields: [categoryId], references: [id])
+  @@unique([memberId, categoryId])
+
+yearActive Int?
+}
+
+model GradeCategory {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  weight      Float
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  createdById Int
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  grades      Grade[]
+}
+
+model ScreenPermission {
+  id        Int      @id @default(autoincrement())
+  screenId  String
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])  
+  createdAt DateTime @default(now())
+
+  @@unique([screenId, userId])
+}
+
+
+model Session {
+  id        Int          @id @default(autoincrement())
+  date      DateTime     @unique
+  createdById Int
+  createdBy User         @relation(fields: [createdById], references: [id])
+  createdAt DateTime     @default(now())
+  attendances Attendance[]
+}
