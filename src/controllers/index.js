@@ -3,6 +3,8 @@ const memberController = require("./member.controller");
 const authController = require("./authController");
 const attendanceController = require("./attendanceController");
 const gradeController = require("./gradeController");
+const activityController = require("./activityController");
+const activityAttendanceController = require("./activityAttendanceController");
 
 module.exports = {
   userController,
@@ -10,4 +12,6 @@ module.exports = {
   authController,
   attendanceController,
   gradeController,
+  activityController,
+  activityAttendanceController,
 };

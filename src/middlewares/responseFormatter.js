@@ -41,6 +41,7 @@ function formatDatesDeep(obj) {
 
 function responseFormatter(req, res, next) {
   const oldJson = res.json;
+
   res.json = function (data) {
     const formattedData = formatDatesDeep(data);
     return oldJson.call(this, formattedData);

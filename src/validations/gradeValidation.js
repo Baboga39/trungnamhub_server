@@ -103,7 +103,13 @@ const upsertGradeSchema = Joi.object({
       "array.base": `"scores" must be an array`,
       "array.min": `"scores" must contain at least one item`,
       "any.required": `"scores" is required`
-    })
+    }),
+  year: Joi.number()
+    .integer()
+    .required(),
+  quarter: Joi.number()
+    .integer()
+    .valid(1, 2, 3, 4)
 });
 
 module.exports = {

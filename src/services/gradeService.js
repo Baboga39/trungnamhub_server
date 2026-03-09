@@ -5,11 +5,62 @@ const {
 } = require("../libs/scoreCalculator");
 
 async function getAllGrades() {
-  return prisma.grade.findMany({
+  const grades = await prisma.grade.findMany({
     include: {
       mMember: true,
+      category: true,
     },
   });
+
+  const activities = await prisma.activityAttendance.findMany({
+    include: {
+      activity: true,
+    },
+  });
+
+  // map activity score theo member + quarter + year
+  const activityMap = new Map();
+
+  for (const a of activities) {
+    const key = `${a.memberId}_${a.activity.year}_${a.activity.quarter}`;
+
+    const current = activityMap.get(key) || {
+      count: 0,
+      score: 0,
+    };
+
+    current.count += 1;
+    current.score = Math.min(current.score + 0.2, 10);
+    activityMap.set(key, current);
+  }
+
+  // group grades
+  const grouped = {};
+
+  for (const g of grades) {
+    const key = `${g.memberId}_${g.year}_${g.quarter}`;
+
+    if (!grouped[key]) {
+      const activity = activityMap.get(key) || { count: 0, score: 0 };
+
+      grouped[key] = {
+        memberId: g.memberId,
+        year: g.year,
+        quarter: g.quarter,
+        mMember: g.mMember,
+
+        scores: {},
+        activityCount: activity.count,
+        activityScore: activity.score,
+      };
+    }
+
+    const catKey = g.category.name.toLowerCase().replace(/\s+/g, "_");
+
+    grouped[key].scores[catKey] = g.score;
+  }
+
+  return Object.values(grouped);
 }
 
 async function upSertGradeCategory(data, user) {
@@ -33,62 +84,80 @@ async function getAllGradeCategory() {
 }
 
 async function upSertScore(data) {
-  const { memberId, scores } = data;
+  const { memberId, year, quarter, scores } = data;
 
   if (!scores || !Array.isArray(scores)) {
     throw new Error("scores must be an array");
   }
 
-  return await prisma.$transaction(
+  return prisma.$transaction(
     scores.map((s) =>
       prisma.grade.upsert({
         where: {
-          memberId_categoryId: {
+          memberId_categoryId_year_quarter: {
             memberId: Number(memberId),
             categoryId: Number(s.categoryId),
+            year: Number(year),
+            quarter: Number(quarter),
           },
         },
-        update: { score: Number(s.score) },
+        update: {
+          score: Number(s.score),
+        },
         create: {
           memberId: Number(memberId),
           categoryId: Number(s.categoryId),
+          year: Number(year),
+          quarter: Number(quarter),
           score: Number(s.score),
-          createdAt: new Date(),
         },
       }),
     ),
   );
 }
-async function updateAttendanceScore(memberId) {
-  const year = new Date().getFullYear();
+function getQuarter(date) {
+  return Math.floor(date.getMonth() / 3) + 1;
+}
 
-  // lấy toàn bộ buổi trong năm
-  const sessions = await prisma.session.findMany({
+function getCurrentEvaluationQuarters() {
+  const month = new Date().getMonth() + 1;
+
+  if (month <= 6) {
+    return [1, 2];
+  }
+
+  return [1, 2, 3, 4];
+}
+
+async function updateAttendanceScore(memberId, year, quarter) {
+  const startMonth = (quarter - 1) * 3;
+  const startDate = new Date(year, startMonth, 1);
+  const endDate = new Date(year, startMonth + 3, 0);
+
+  // tổng số buổi sinh hoạt trong quý
+  const totalSessions = await prisma.session.count({
     where: {
       date: {
-        gte: new Date(year, 0, 1),
-        lte: new Date(year, 11, 31),
+        gte: startDate,
+        lte: endDate,
       },
     },
-    select: { id: true, date: true },
   });
 
-  const totalSessions = sessions.length;
-  if (totalSessions === 0) return 0;
+  if (totalSessions === 0) return;
 
-  // lấy tất cả record điểm danh của member
+  // chỉ lấy record vắng/trễ/có phép
   const attendances = await prisma.attendance.findMany({
     where: {
       memberId,
       date: {
-        gte: new Date(year, 0, 1),
-        lte: new Date(year, 11, 31),
+        gte: startDate,
+        lte: endDate,
       },
     },
     select: { status: true },
   });
 
-  // rule tính điểm
   let absentEquivalent = 0;
 
   for (const a of attendances) {
@@ -100,54 +169,101 @@ async function updateAttendanceScore(memberId) {
         absentEquivalent += 0.5;
         break;
       case "excused":
-        absentEquivalent += 0;
-        break;
-      default:
+        absentEquivalent += 0.2;
         break;
     }
   }
 
   const presentEquivalent = totalSessions - absentEquivalent;
 
-  const score = Number(((presentEquivalent / totalSessions) * 10).toFixed(2));
+  const score = Number(((presentEquivalent / totalSessions) * 10).toFixed(1));
 
   const category = await prisma.gradeCategory.findFirst({
     where: { name: "Chuyên cần", active: true },
   });
 
-  if (category) {
-    await prisma.grade.upsert({
-      where: {
-        memberId_categoryId: {
-          memberId,
-          categoryId: category.id,
-        },
-      },
-      update: { score },
-      create: { memberId, categoryId: category.id, score },
-    });
-  }
+  if (!category) return;
 
-  return score;
+  await prisma.grade.upsert({
+    where: {
+      memberId_categoryId_year_quarter: {
+        memberId,
+        categoryId: category.id,
+        year,
+        quarter,
+      },
+    },
+    update: { score },
+    create: {
+      memberId,
+      categoryId: category.id,
+      year,
+      quarter,
+      score,
+    },
+  });
 }
+
+async function recalculateAllAttendanceScores(date) {
+  const members = await prisma.member.findMany({
+    where: { active: true },
+    select: { id: true },
+  });
+
+  const year = date.getFullYear();
+  const quarter = getQuarter(date);
+
+  await Promise.all(
+    members.map((m) => updateAttendanceScore(m.id, year, quarter)),
+  );
+}
+
 async function getTop3MembersByScoreThisYear() {
+  const quarters = getCurrentEvaluationQuarters();
   const currentYear = new Date().getFullYear();
 
-  // Lấy toàn bộ điểm trong năm + category + member
+  // lấy điểm các category
   const grades = await prisma.grade.findMany({
-    where: { yearActive: currentYear },
+    where: {
+      year: currentYear,
+      quarter: { in: quarters },
+    },
     include: {
       category: true,
       mMember: true,
     },
   });
 
-  // Lấy danh sách category để có weight
+  // lấy điểm hoạt động
+  const activities = await prisma.activityAttendance.findMany({
+    where: {
+      activity: {
+        year: currentYear,
+        quarter: { in: quarters },
+      },
+    },
+    include: {
+      activity: true,
+    },
+  });
+
+  // map activity score
+  const activityMap = new Map();
+
+  for (const a of activities) {
+    const key = a.memberId;
+
+    const current = activityMap.get(key) || { score: 0 };
+
+    current.score = Math.min(current.score + 0.2, 10);
+
+    activityMap.set(key, current);
+  }
+
   const categories = await prisma.gradeCategory.findMany({
     where: { active: true },
   });
 
-  // Gom điểm theo member
   const map = new Map();
 
   for (const g of grades) {
@@ -160,7 +276,6 @@ async function getTop3MembersByScoreThisYear() {
 
     const item = map.get(g.memberId);
 
-    // map điểm về đúng key giống formData
     const nameMap = {
       "Kiến thức": "knowledge",
       "Kỹ năng": "skill",
@@ -169,13 +284,16 @@ async function getTop3MembersByScoreThisYear() {
       Phạt: "penalty",
     };
 
-    const key = nameMap[g.category.name] || g.category.name;
+    const key = nameMap[g.category.name.trim()];
     item.formData[key] = g.score;
   }
 
-  // Tính tổng điểm động theo công thức chuẩn
   const result = Array.from(map.entries()).map(([memberId, data]) => {
-    const totalScore = calculateTotalScoreDynamic(data.formData, categories);
+    const activity = activityMap.get(memberId) || { score: 0 };
+
+    const baseScore = calculateTotalScoreDynamic(data.formData, categories);
+
+    const totalScore = baseScore + activity.score;
     return {
       memberId,
       totalScore,
@@ -184,26 +302,52 @@ async function getTop3MembersByScoreThisYear() {
     };
   });
 
-  // Sort & lấy top 3
   return result.sort((a, b) => b.totalScore - a.totalScore).slice(0, 3);
 }
 
 async function getRankingThisYear() {
+  const quarters = getCurrentEvaluationQuarters();
   const currentYear = new Date().getFullYear();
 
   const grades = await prisma.grade.findMany({
-    where: { yearActive: currentYear },
+    where: {
+      year: currentYear,
+      quarter: { in: quarters },
+    },
     include: {
       mMember: true,
       category: true,
     },
   });
 
+  const activities = await prisma.activityAttendance.findMany({
+    where: {
+      activity: {
+        year: currentYear,
+        quarter: { in: quarters },
+      },
+    },
+    include: {
+      activity: true,
+    },
+  });
+
+  const activityMap = new Map();
+
+  for (const a of activities) {
+    const key = a.memberId;
+
+    const current = activityMap.get(key) || { score: 0 };
+
+    current.score = Math.min(current.score + 0.2, 10);
+
+    activityMap.set(key, current);
+  }
+
   const categories = await prisma.gradeCategory.findMany({
     where: { active: true },
   });
 
-  // group theo member
   const map = {};
 
   for (const g of grades) {
@@ -214,12 +358,14 @@ async function getRankingThisYear() {
         scores: {},
       };
     }
+
     map[g.memberId].scores[g.category.name] = g.score;
   }
 
-
   const ranking = Object.values(map).map((m) => {
-    const totalScore = calculateTotalScoreDynamic(
+    const activity = activityMap.get(m.memberId) || { score: 0 };
+
+    const baseScore = calculateTotalScoreDynamic(
       {
         knowledge: m.scores["Kiến thức"],
         skill: m.scores["Kỹ năng"],
@@ -229,6 +375,8 @@ async function getRankingThisYear() {
       },
       categories,
     );
+
+    const totalScore = baseScore + activity.score;
 
     return {
       memberId: m.memberId,
@@ -240,12 +388,12 @@ async function getRankingThisYear() {
   });
 
   return ranking
-  .sort((a, b) => b.totalScore - a.totalScore)
-  .slice(0, 10)
-  .map((r, index) => ({
-    ...r,
-    rank: index + 1,
-  }));
+    .sort((a, b) => b.totalScore - a.totalScore)
+    .slice(0, 10)
+    .map((r, index) => ({
+      ...r,
+      rank: index + 1,
+    }));
 }
 async function getGradeTrendTimeline() {
   const currentYear = new Date().getFullYear();
@@ -253,7 +401,7 @@ async function getGradeTrendTimeline() {
   // Lấy toàn bộ grade trong năm
   const grades = await prisma.grade.findMany({
     where: {
-      yearActive: currentYear,
+      year: currentYear,
     },
     select: {
       score: true,
@@ -279,8 +427,7 @@ async function getGradeTrendTimeline() {
 
   // Tính avg / max / min cho từng tháng
   const result = Object.values(monthMap).map((m) => {
-    const avg =
-      m.scores.reduce((a, b) => a + b, 0) / m.scores.length;
+    const avg = m.scores.reduce((a, b) => a + b, 0) / m.scores.length;
 
     return {
       month: m.month,
@@ -298,9 +445,6 @@ async function getGradeTrendTimeline() {
   });
 }
 
-
-
-
 module.exports = {
   getAllGrades,
   upSertGradeCategory,
@@ -311,4 +455,5 @@ module.exports = {
   getTop3MembersByScoreThisYear,
   getRankingThisYear,
   getGradeTrendTimeline,
+  recalculateAllAttendanceScores,
 };

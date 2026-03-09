@@ -103,7 +103,7 @@ async function getRiskMembers() {
       },
       grades: {
         where: {
-          yearActive: currentYear,
+          year: currentYear,
         },
       },
     },
@@ -175,13 +175,13 @@ async function getRiskMembers() {
 }
 
 async function getAttendanceStreakTop(limit = 10) {
-  // 1️⃣ Lấy tất cả session theo thứ tự thời gian
+  // 1️⃣ Lấy toàn bộ session
   const sessions = await prisma.session.findMany({
     orderBy: { date: "asc" },
     select: { id: true, date: true },
   });
 
-  // 2️⃣ Lấy đoàn sinh + attendance (chỉ absent / late)
+  // 2️⃣ Lấy đoàn sinh + attendance
   const members = await prisma.member.findMany({
     where: { active: true },
     select: {
@@ -199,42 +199,44 @@ async function getAttendanceStreakTop(limit = 10) {
 
   const results = [];
 
-  members.forEach((m) => {
-    // Map nhanh sessionId → status
-    const attendanceMap = new Map();
-    m.attendances.forEach((a) => {
-      attendanceMap.set(a.sessionId, a.status);
-    });
+  for (const m of members) {
+    // map nhanh sessionId -> status
+    const attendanceMap = new Map(
+      m.attendances.map((a) => [a.sessionId, a.status])
+    );
 
     let currentStreak = 0;
     let longestStreak = 0;
     let tempStreak = 0;
 
-    // 3️⃣ Tính longest streak
-    sessions.forEach((s) => {
+    // 3️⃣ Filter session sau ngày join
+    const validSessions = sessions.filter(
+      (s) => !m.joinDate || s.date >= m.joinDate
+    );
+
+    // 4️⃣ longest streak
+    for (const s of validSessions) {
       const status = attendanceMap.get(s.id);
 
-      // Không có record => present
       if (!status) {
-        tempStreak += 1;
+        tempStreak++;
         longestStreak = Math.max(longestStreak, tempStreak);
       } else {
-        // absent hoặc late
         tempStreak = 0;
       }
-    });
+    }
 
-    // 4️⃣ Tính current streak (từ session mới nhất)
-    for (let i = sessions.length - 1; i >= 0; i--) {
-      const status = attendanceMap.get(sessions[i].id);
+    // 5️⃣ current streak (từ session mới nhất)
+    for (let i = validSessions.length - 1; i >= 0; i--) {
+      const status = attendanceMap.get(validSessions[i].id);
+
       if (!status) {
-        currentStreak += 1;
+        currentStreak++;
       } else {
         break;
       }
     }
 
-    // Optional: chỉ lấy những người có streak > 0
     if (currentStreak > 0 || longestStreak > 0) {
       results.push({
         id: m.id,
@@ -244,9 +246,9 @@ async function getAttendanceStreakTop(limit = 10) {
         longestStreak,
       });
     }
-  });
+  }
 
-  // 5️⃣ Sort & lấy top
+  // 6️⃣ sort top
   return results
     .sort((a, b) => {
       if (b.currentStreak !== a.currentStreak) {
@@ -256,7 +258,6 @@ async function getAttendanceStreakTop(limit = 10) {
     })
     .slice(0, limit);
 }
-
 
 module.exports = {
   getDashboardStats,

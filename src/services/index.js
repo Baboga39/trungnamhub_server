@@ -5,6 +5,8 @@ const attendanceService = require("./attendanceService");
 const gradeService = require("./gradeService");
 const sessionService = require("./sessionService");
 const dashboardService = require("./dashboardService");
+const activityService = require("./activityService");
+const activityAttendanceService = require("./activityAttendanceService");
 
 module.exports = {
   userService,
@@ -14,4 +16,6 @@ module.exports = {
   gradeService,
   sessionService,
   dashboardService,
+  activityService,
+  activityAttendanceService,
 };

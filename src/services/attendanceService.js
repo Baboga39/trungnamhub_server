@@ -1,7 +1,7 @@
 // src/services/attendanceService.js
 const prisma = require("../libs/prisma");
 const sessionService = require("./sessionService");
-const { updateAttendanceScore } = require("./gradeService");
+const { updateAttendanceScore, recalculateAllAttendanceScores } = require("./gradeService");
 
 
 function validateRecordsFormat(recordsByDate) {
@@ -45,7 +45,7 @@ async function markAttendance(user, recordsByDate) {
     const parsedDate = parseValidDate(dateKey);
     if (!parsedDate) continue;
 
-    const session = await  sessionService.ensureSession(parsedDate, user.userId);
+    const session = await sessionService.ensureSession(parsedDate, user.userId);
 
     for (const [memberIdStr, record] of Object.entries(members)) {
       const memberId = Number(memberIdStr);
@@ -56,16 +56,8 @@ async function markAttendance(user, recordsByDate) {
 
       const existing = await findExistingAttendance(parsedDate, memberId);
 
-      const data = {
-        userId: user.userId,
-        parsedDate,
-        memberId,
-        status,
-        note,
-        existing,
-      };
-
       let result;
+
       if (existing) {
         result = await prisma.attendance.update({
           where: { id: existing.id },
@@ -73,7 +65,7 @@ async function markAttendance(user, recordsByDate) {
             status,
             note,
             markedById: user.userId,
-            sessionId: session.id,    // 👈 gắn sessionId cho bản update
+            sessionId: session.id,
             updatedAt: new Date(),
           },
         });
@@ -85,18 +77,20 @@ async function markAttendance(user, recordsByDate) {
             note,
             memberId,
             markedById: user.userId,
-            sessionId: session.id,    // 👈 gắn sessionId cho bản create
+            sessionId: session.id,
             createdAt: new Date(),
             updatedAt: new Date(),
           },
         });
       }
 
-            await updateAttendanceScore(memberId);
-
       results.push(result);
     }
+
+      await recalculateAllAttendanceScores(parsedDate);
+
   }
+
 
   return results;
 }

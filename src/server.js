@@ -3,6 +3,8 @@ const cors = require("cors");
 const { responseMiddleware, errorHandler } = require("./middlewares");
 const routes = require("./routes");
 const { responseFormatter } = require("./middlewares/responseFormatter");
+const startTestSchedule = require("./schedules/testSchedule");
+
 
 const app = express();
 
@@ -13,6 +15,9 @@ app.use(responseFormatter);
 
 // Mount all routes
 routes(app);
+
+// startTestSchedule();
+
 
 
 // Error handler

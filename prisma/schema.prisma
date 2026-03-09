@@ -23,11 +23,12 @@ model User {
   permissions       ScreenPermission[]
   gradeCategories   GradeCategory[]
 
-  sessionsCreated   Session[]   
+  sessionsCreated Session[]
 
-  active    Boolean   @default(true)
+  active            Boolean              @default(true)
+  activitiesMarked  ActivityAttendance[] @relation("MarkedBy")
+  activitiesCreated Activity[]
 }
-
 
 model Member {
   id         Int       @id @default(autoincrement())
@@ -51,31 +52,31 @@ model Member {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  attendances Attendance[]
-  grades      Grade[]
+  attendances         Attendance[]
+  grades              Grade[]
+  activityAttendances ActivityAttendance[]
 }
 
 model Attendance {
-  id         Int      @id @default(autoincrement())
-  date       DateTime
-  status     String
-  note       String?
-  
-  memberId   Int
-  member     Member   @relation(fields: [memberId], references: [id])
+  id     Int      @id @default(autoincrement())
+  date   DateTime
+  status String
+  note   String?
 
-  sessionId  Int?
-  session    Session? @relation(fields: [sessionId], references: [id])
+  memberId Int
+  member   Member @relation(fields: [memberId], references: [id])
+
+  sessionId Int?
+  session   Session? @relation(fields: [sessionId], references: [id])
 
   markedById Int?
-  markedBy   User?    @relation("MarkedBy", fields: [markedById], references: [id])
+  markedBy   User? @relation("MarkedBy", fields: [markedById], references: [id])
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([date, memberId])
 }
-
 
 model Grade {
   id         Int           @id @default(autoincrement())
@@ -84,10 +85,12 @@ model Grade {
   mMember    Member        @relation(fields: [memberId], references: [id])
   createdAt  DateTime      @default(now())
   categoryId Int
+  activityScore Float?
   category   GradeCategory @relation(fields: [categoryId], references: [id])
-  @@unique([memberId, categoryId])
+  year       Int
+  quarter    Int
 
-yearActive Int?
+  @@unique([memberId, categoryId, year, quarter])
 }
 
 model GradeCategory {
@@ -105,18 +108,52 @@ model ScreenPermission {
   id        Int      @id @default(autoincrement())
   screenId  String
   userId    Int
-  user      User     @relation(fields: [userId], references: [id])  
+  user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
 
   @@unique([screenId, userId])
 }
 
-
 model Session {
-  id        Int          @id @default(autoincrement())
-  date      DateTime     @unique
+  id          Int          @id @default(autoincrement())
+  date        DateTime     @unique
   createdById Int
-  createdBy User         @relation(fields: [createdById], references: [id])
-  createdAt DateTime     @default(now())
+  createdBy   User         @relation(fields: [createdById], references: [id])
+  createdAt   DateTime     @default(now())
   attendances Attendance[]
+}
+
+model Activity {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  year        Int
+  quarter     Int
+  date        DateTime
+
+  attendances ActivityAttendance[]
+  createdById Int
+  createdBy   User                 @relation(fields: [createdById], references: [id])
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+}
+
+model ActivityAttendance {
+  id     Int     @id @default(autoincrement())
+  status String?
+  note   String?
+
+  activityId Int
+  activity   Activity @relation(fields: [activityId], references: [id])
+
+  memberId Int
+  member   Member @relation(fields: [memberId], references: [id])
+
+  markedById Int?
+  markedBy   User? @relation("MarkedBy", fields: [markedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([activityId, memberId])
 }
