@@ -16,7 +16,7 @@ app.use(responseFormatter);
 // Mount all routes
 routes(app);
 
-// startTestSchedule();
+startTestSchedule();
 
 
 
