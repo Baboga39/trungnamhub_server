@@ -3,7 +3,7 @@ const cors = require("cors");
 const { responseMiddleware, errorHandler } = require("./middlewares");
 const routes = require("./routes");
 const { responseFormatter } = require("./middlewares/responseFormatter");
-const startTestSchedule = require("./schedules/testSchedule");
+const pingService = require("./schedules/pingService");
 
 
 const app = express();
@@ -16,7 +16,7 @@ app.use(responseFormatter);
 // Mount all routes
 routes(app);
 
-// startTestSchedule();
+pingService();
 app.get("/health", (req, res) => {
   res.status(200).send("OK");
 });
