@@ -17,7 +17,7 @@ const meta = {
  const result = await prisma.user.findMany({
     include: { members: true },
   });
-// await sendReportMail(result,meta,usersReportSchema);
+await sendReportMail(result,meta,usersReportSchema);
 
   return result;
 }

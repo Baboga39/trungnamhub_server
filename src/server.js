@@ -16,8 +16,10 @@ app.use(responseFormatter);
 // Mount all routes
 routes(app);
 
-startTestSchedule();
-
+// startTestSchedule();
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
+});
 
 
 // Error handler
