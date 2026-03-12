@@ -13,4 +13,4 @@ async function pingService() {
 
 setInterval(pingService, 5 * 60 * 1000);
 
-module.exports = startTestSchedule;
+module.exports = pingService;
