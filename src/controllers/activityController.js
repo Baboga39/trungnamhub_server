@@ -20,4 +20,14 @@ async function getActivities(req, res, next) {
   }
 }
 
-module.exports = { upsertActivity , getActivities };
+async function deleteActivity(req, res, next) {
+  try {
+    const { id } = req.params;
+    const deletedActivity = await services.activityService.deleteActivity(id);
+    res.ok(deletedActivity, "Activity deleted successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { upsertActivity , getActivities , deleteActivity };

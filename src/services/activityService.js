@@ -30,7 +30,16 @@ function getActivities() {
   });
 }
 
+function deleteActivity(id) {
+  return prisma.activity.delete({
+    where: {
+      id: Number(id),
+    },
+  });
+}
+
 module.exports = {
   upSertActivity,
   getActivities,
+  deleteActivity,
 };

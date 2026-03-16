@@ -18,4 +18,10 @@ router.get(
   controller.activityController.getActivities
 );
 
+router.delete(
+  "/:id",
+  middlewares.auth,
+  controller.activityController.deleteActivity
+);
+
 module.exports = router;

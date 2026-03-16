@@ -144,7 +144,7 @@ model ActivityAttendance {
   note   String?
 
   activityId Int
-  activity   Activity @relation(fields: [activityId], references: [id])
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
 
   memberId Int
   member   Member @relation(fields: [memberId], references: [id])

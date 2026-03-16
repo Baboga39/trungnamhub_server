@@ -11,7 +11,6 @@ async function upsertMember(data,user) {
 
 async function getMembers() {
   return prisma.member.findMany({
-    where: { active: true },
     include: { user: true },
   });
 }
