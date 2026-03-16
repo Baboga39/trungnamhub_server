@@ -10,5 +10,17 @@ router.post(
   controller.activityAttendanceController.markAttendanceActivity
 );
 
+router.get(
+  "/:activityId/attendance",
+  middlewares.auth, 
+  controller.activityAttendanceController.getActivityAttendance
+);
+
+router.delete(
+  "/delete-attendance",
+  middlewares.auth, 
+  controller.activityAttendanceController.deleteActivityAttendance
+);
+
 
 module.exports = router;

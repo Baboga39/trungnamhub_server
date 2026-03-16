@@ -49,7 +49,18 @@ async function getActivityAttendance(activityId) {
   });
 }
 
+async function deleteActivityAttendance(ids) {
+  return prisma.activityAttendance.deleteMany({
+    where: {
+      id: {
+        in: ids.map(Number),
+      },
+    },
+  });
+}
+
 module.exports = {
   markActivityAttendance,
   getActivityAttendance,
+  deleteActivityAttendance,
 };

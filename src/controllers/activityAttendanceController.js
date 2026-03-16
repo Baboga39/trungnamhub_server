@@ -16,4 +16,24 @@ async function markAttendanceActivity(req, res, next) {
   }
 }
 
-module.exports = { markAttendanceActivity };
+async function getActivityAttendance(req, res, next) {
+  try {
+    const activityId = req.params.activityId;
+    const activity = await services.activityAttendanceService.getActivityAttendance(activityId);
+    res.ok(activity, "Activity attendance fetched successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deleteActivityAttendance(req, res, next) {
+  try {
+    const ids = req.body.ids;
+    const activity = await services.activityAttendanceService.deleteActivityAttendance(ids);
+    res.ok(activity, "Activity attendance deleted successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { markAttendanceActivity, getActivityAttendance, deleteActivityAttendance };
