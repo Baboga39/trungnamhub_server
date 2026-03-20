@@ -47,4 +47,33 @@ async function remove(req, res, next) {
   }
 }
 
-module.exports = { upsert, getAll, getById, remove, getMembersActive };
+async function changeStatus(req, res, next) {
+  try {
+    const {memberId, dateChange, note } = req.body;
+    const member = await services.memberService.changeMemberStatus(memberId, dateChange);
+    return res.ok(member, "Member status changed successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function getMemberStatusHistory(req, res, next) {
+  try {
+    const memberId = req.params.memberId;
+    const memberStatusHistory = await services.memberService.getMemberStatusHistory(memberId);
+    return res.ok(memberStatusHistory, "Member status history fetched successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+async function deleteHistoryById(req, res, next) {
+  try {
+    const { id } = req.params;
+    await services.memberService.deleteHistoryById(id);
+    return res.ok(null, "History deleted successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { upsert, getAll, getById, remove, getMembersActive, changeStatus , getMemberStatusHistory, deleteHistoryById  };

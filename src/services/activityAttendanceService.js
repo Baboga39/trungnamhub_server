@@ -9,34 +9,43 @@ async function markActivityAttendance(user, activityId, memberIds) {
     throw { statusCode: 400, message: "memberIds must be an array" };
   }
 
-  const activity = await prisma.activity.findUnique({
-    where: { id: Number(activityId) },
+  const activityIdNum = Number(activityId);
+
+  // 1. Lấy current attendance
+  const existing = await prisma.activityAttendance.findMany({
+    where: { activityId: activityIdNum },
+    select: { memberId: true },
   });
 
-  if (!activity) {
-    throw { statusCode: 404, message: "Activity not found" };
-  }
+  const existingIds = existing.map((e) => e.memberId);
 
-  const operations = memberIds.map((memberId) =>
-    prisma.activityAttendance.upsert({
+  // 2. Convert về number 
+  const newIds = memberIds.map(Number);
+
+  // 3. Diff
+  const toCreate = newIds.filter((id) => !existingIds.includes(id));
+  const toDelete = existingIds.filter((id) => !newIds.includes(id));
+
+  // 4. Execute transaction
+  return prisma.$transaction([
+    // create mới
+    prisma.activityAttendance.createMany({
+      data: toCreate.map((memberId) => ({
+        activityId: activityIdNum,
+        memberId,
+        markedById: user.userId,
+      })),
+      skipDuplicates: true,
+    }),
+
+    // xóa những cái không còn
+    prisma.activityAttendance.deleteMany({
       where: {
-        activityId_memberId: {
-          activityId: Number(activityId),
-          memberId: Number(memberId),
-        },
+        activityId: activityIdNum,
+        memberId: { in: toDelete },
       },
-      update: {
-        markedById: user.userId,
-      },
-      create: {
-        activityId: Number(activityId),
-        memberId: Number(memberId),
-        markedById: user.userId,
-      },
-    })
-  );
-
-  return prisma.$transaction(operations);
+    }),
+  ]);
 }
 
 async function getActivityAttendance(activityId) {

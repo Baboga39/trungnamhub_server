@@ -6,6 +6,7 @@ const gradeRoutes = require("./gradeRoutes");
 const dashboardRoutes = require("./dashboard.routes");
 const activitiesRoutes = require("./activitiesRoutes");
 const activityAttendanceRoutes = require("./activityAttendanceRoutes");
+const reportRoutes = require("./reportRoutes"); 
 
 module.exports = (app) => {
   // User
@@ -24,4 +25,6 @@ module.exports = (app) => {
   app.use("/api/v1/activities", activitiesRoutes);
 
   app.use("/api/v1/activity-attendance", activityAttendanceRoutes);
+
+  app.use("/api/v1/reports", reportRoutes);
 };

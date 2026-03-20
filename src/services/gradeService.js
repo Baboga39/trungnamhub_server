@@ -63,6 +63,28 @@ async function getAllGrades() {
   return Object.values(grouped);
 }
 
+function buildActivityMap(activities, groupByQuarter = true) {
+  const map = new Map();
+
+  for (const a of activities) {
+    const key = groupByQuarter
+      ? `${a.memberId}_${a.activity.year}_${a.activity.quarter}`
+      : `${a.memberId}`;
+
+    const current = map.get(key) || {
+      count: 0,
+      score: 0,
+    };
+
+    current.count += 1;
+    current.score = Math.min(current.score + 0.2, 10);
+
+    map.set(key, current);
+  }
+
+  return map;
+}
+
 async function upSertGradeCategory(data, user) {
   return prisma.gradeCategory.upsert({
     where: { id: data.id || 0 },
@@ -456,4 +478,5 @@ module.exports = {
   getRankingThisYear,
   getGradeTrendTimeline,
   recalculateAllAttendanceScores,
+  buildActivityMap,
 };

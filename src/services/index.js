@@ -7,7 +7,8 @@ const sessionService = require("./sessionService");
 const dashboardService = require("./dashboardService");
 const activityService = require("./activityService");
 const activityAttendanceService = require("./activityAttendanceService");
-
+const reportService = require("./reportService"); 
+const mailService = require("./mailService/mailService");
 module.exports = {
   userService,
   memberService,
@@ -18,4 +19,6 @@ module.exports = {
   dashboardService,
   activityService,
   activityAttendanceService,
+  reportService,
+  mailService,
 };

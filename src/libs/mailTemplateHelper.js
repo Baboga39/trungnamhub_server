@@ -15,7 +15,7 @@ export function renderReportTemplate({
 
   // Replace all placeholders
   html = html
-    .replace(/\[TÊN_TRƯỞNG_ĐOÀN\]/g, tenTruongDoan || "Trưởng đoàn")
+    .replace(/\[TÊN_TRƯỞNG_ĐOÀN\]/g, tenTruongDoan )
     .replace(/\[TIÊU_ĐỀ_BÁO_CÁO\]/g, tieuDeBaoCao || "Báo cáo đoàn sinh")
     .replace(/\[TÊN_NGƯỜI_GỬI\]/g, tenNguoiGui || "Hệ thống Trung Nam")
     .replace(/\[NGÀY_GỬI\]/g, ngayGui || new Date().toLocaleDateString("vi-VN"))

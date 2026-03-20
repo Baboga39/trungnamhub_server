@@ -1,10 +1,11 @@
 // src/services/mailService/mailService.js
-import nodemailer from "nodemailer";
-import { google } from "googleapis";
-import { createStyledExcelBuffer } from "../../libs/excelHelper.js";
-import { renderReportTemplate } from "../../libs/mailTemplateHelper.js";
 
-export async function sendReportMail(reportData, meta, schema) {
+const nodemailer = require("nodemailer");
+const { google } = require("googleapis");
+const { createStyledExcelBuffer } = require("../../libs/excelHelper");
+const { renderReportTemplate } = require("../../libs/mailTemplateHelper");
+
+const sendReportMail = async ({ meta, attachments = [] }) => {
   const oAuth2Client = new google.auth.OAuth2(
     process.env.GMAIL_CLIENT_ID,
     process.env.GMAIL_CLIENT_SECRET,
@@ -29,20 +30,13 @@ export async function sendReportMail(reportData, meta, schema) {
     },
   });
 
-  // ⚡ TRUYỀN SCHEMA VÀO ĐÂY
-  const excelBuffer = await createStyledExcelBuffer(
-    reportData,
-    meta.tieuDeBaoCao,
-    schema
-  );
-
   const htmlContent = renderReportTemplate({
     tenTruongDoan: meta.tenTruongDoan,
     tieuDeBaoCao: meta.tieuDeBaoCao,
     tenNguoiGui: meta.tenNguoiGui,
     ngayGui: new Date().toLocaleDateString("vi-VN"),
     loaiBaoCao: meta.loaiBaoCao,
-    soLuongFile: 1,
+    soLuongFile: attachments.length,
     emailHeThong: process.env.GMAIL_USER,
   });
 
@@ -51,14 +45,14 @@ export async function sendReportMail(reportData, meta, schema) {
     to: meta.toEmail,
     subject: `📊 ${meta.tieuDeBaoCao}`,
     html: htmlContent,
-    attachments: [
-      {
-        filename: `${meta.tieuDeBaoCao}.xlsx`,
-        content: excelBuffer,
-      },
-    ],
+    attachments,
   };
 
   await transporter.sendMail(mailOptions);
-  console.log("✅ Mail gửi thành công đến:", meta.toEmail);
-}
+
+  console.log(`📧 Report email sent to ${meta.toEmail}`);
+};
+
+module.exports = {
+  sendReportMail,
+};

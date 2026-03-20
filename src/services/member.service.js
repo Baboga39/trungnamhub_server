@@ -36,10 +36,60 @@ async function softDeleteMember(id) {
   });
 }
 
+async function changeMemberStatus( memberId, dateChange, note) {
+
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+  });
+
+  if (!member) {
+    throw new Error("Member not found");
+  }
+
+  const newStatus = !member.active;
+  const date = dateChange ? new Date(dateChange) : new Date();
+
+  return await prisma.$transaction(async (tx) => {
+
+    const updatedMember = await tx.member.update({
+      where: { id: memberId },
+      data: {
+        active: newStatus,
+      },
+    });
+
+    await tx.memberStatusHistory.create({
+      data: {
+        memberId,
+        status: newStatus, 
+        date,
+        note: note || (newStatus ? "Activated" : "Deactivated"),
+      },
+    });
+
+    return updatedMember;
+  });
+}
+
+async function getMemberStatusHistory(memberId) {
+  return prisma.memberStatusHistory.findMany({
+    where: { memberId: Number(memberId) },
+    orderBy: { date: 'desc' },
+  });
+}
+
+async function deleteHistoryById(id) {
+  return prisma.memberStatusHistory.delete({
+    where: { id: Number(id) || id },
+  });
+}
 module.exports = {
   upsertMember,
   getMembers,
   getMemberById,
   softDeleteMember,
-  getMembersActive
+  getMembersActive,
+  changeMemberStatus,
+  getMemberStatusHistory,
+  deleteHistoryById,
 };

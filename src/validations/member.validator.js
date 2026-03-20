@@ -31,5 +31,6 @@ const memberSchema = Joi.object({
   active: Joi.boolean().optional().allow(null)
 });
 
-module.exports = { memberSchema };
 
+
+module.exports = { memberSchema };
