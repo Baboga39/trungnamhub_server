@@ -66,22 +66,44 @@ const buildDinnerInvitationHTML = ({
       }
 
       .menu {
-        margin-top: 20px;
+        margin-top: 25px;
       }
 
       .menu h3 {
         text-align: center;
-        margin-bottom: 15px;
+        margin-bottom: 20px;
+        font-size: 20px;
       }
 
       .course {
         text-align: center;
-        margin-bottom: 15px;
+        margin: 18px 0;
       }
 
       .course-title {
-        font-weight: bold;
+        font-size: 12px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
         color: #d67ba1;
+        margin-bottom: 5px;
+      }
+
+      .course-item {
+        font-size: 16px;
+        font-weight: 500;
+        color: #333;
+      }
+
+      .course-sub {
+        font-size: 13px;
+        color: #777;
+        font-style: italic;
+      }
+
+      .divider {
+        text-align: center;
+        color: #d67ba1;
+        margin: 10px 0;
       }
 
       .footer {
@@ -111,7 +133,7 @@ const buildDinnerInvitationHTML = ({
       <!-- HEADER -->
       <div class="header">
         <h1>${name}</h1>
-        <p>Anh muốn mời em đi ăn tối</p>
+        <p>A Special Dinner Invitation 💖</p>
         <p><i>"${message}"</i></p>
       </div>
 
@@ -119,60 +141,78 @@ const buildDinnerInvitationHTML = ({
       <div class="content">
 
         <div class="box">
-          <div class="label">Ngày</div>
+          <div class="label">Date</div>
           <div class="value">${date}</div>
         </div>
 
         <div class="box">
-          <div class="label">Giờ</div>
+          <div class="label">Time</div>
           <div class="value">${time}</div>
         </div>
 
         <div class="box">
-          <div class="label">Địa điểm</div>
+          <div class="label">Location</div>
           <div class="value">${location}</div>
           <div style="font-size:13px;color:#666">${address}</div>
         </div>
 
         <!-- MENU -->
         <div class="menu">
-          <h3>Menu tối</h3>
+          <h3>Six Course Tasting 🍷</h3>
 
           <div class="course">
-            <div class="course-title">Khai vị</div>
-            <div>Soup bí đỏ</div>
+            <div class="course-title">STARTER</div>
+            <div class="course-item">Two glasses of premium Italian red wine</div>
+            <div class="course-sub">Bacon Crostini</div>
           </div>
 
-          <div class="course">
-            <div class="course-title">Món chính</div>
-            <div>Bò bít tết sốt tiêu đen</div>
-          </div>
+          <div class="divider">•</div>
 
           <div class="course">
-            <div class="course-title">Món phụ</div>
-            <div>Mì Ý sốt kem</div>
+            <div class="course-title">MAIN COURSE 1</div>
+            <div class="course-item">Oven-baked shrimp with cheese & lemon</div>
           </div>
 
-          <div class="course">
-            <div class="course-title">Tráng miệng</div>
-            <div>Bánh mousse chocolate</div>
-          </div>
+          <div class="divider">•</div>
 
           <div class="course">
-            <div class="course-title">Thức uống</div>
-            <div>Rượu vang đỏ</div>
+            <div class="course-title">MAIN COURSE 2</div>
+            <div class="course-item">Pan-seared goose breast with pink sauce</div>
+          </div>
+
+          <div class="divider">•</div>
+
+          <div class="course">
+            <div class="course-title">PALATE CLEANSER</div>
+            <div class="course-item">Fruit sorbet</div>
+          </div>
+
+          <div class="divider">•</div>
+
+          <div class="course">
+            <div class="course-title">MAIN COURSE 3</div>
+            <div class="course-item">Australian sirloin steak</div>
+            <div class="course-sub">Mashed potatoes & black pepper sauce</div>
+          </div>
+
+          <div class="divider">•</div>
+
+          <div class="course">
+            <div class="course-title">DESSERT</div>
+            <div class="course-item">Vodka Chocolate Affogato</div>
+            <div class="course-sub">❤️</div>
           </div>
 
         </div>
 
-        <a class="btn" href="mailto:?subject=Xác nhận tham dự">
-          Xác nhận tham dự
+        <a class="btn" href="mailto:?subject=RSVP Dinner">
+          Confirm Attendance 💌
         </a>
 
       </div>
 
       <div class="footer">
-        Một buổi tối đặc biệt chỉ dành cho chúng ta ❤️
+        "Every dish is prepared with love and sincerity by our chef"
       </div>
 
     </div>

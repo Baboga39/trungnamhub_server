@@ -8,7 +8,7 @@ const bcrypt = require("bcrypt");
 async function getAllUsers() {
  
 const meta = {
-  toEmail: "ngochai06122002@gmail.com",
+  toEmail: "phannhung05121999@gmail.com",
   tenTruongDoan: "Nguyễn Thành Long",
   tieuDeBaoCao: "Báo cáo đoàn sinh tháng 10",
   tenNguoiGui: "Ban Điều Hành Trung Nam",

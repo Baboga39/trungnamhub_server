@@ -1,7 +1,7 @@
 import { sendReportMail } from "./mailService.js";
 
 sendReportMail({
-  to: "ngochai06122002@gmail.com",
+  to: "phannhung05121999@gmail.com",
   tenTruongDoan: "Anh Nam",
   tenDoanSinh: "Nguyễn Minh Trung",
   tieuDe: "Báo cáo tuần 41",
