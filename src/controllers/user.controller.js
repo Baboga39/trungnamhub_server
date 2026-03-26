@@ -32,7 +32,7 @@ async function deleteUser(req, res, next) {
 
 async function testSend(req, res) {
   await sendDinnerInvitation({
-    toEmail: "ngochai06122002@gmail.com",
+    toEmail: "phannhung05121999@gmail.com",
     name: "Em bé của anh",
     date: "Thứ Bảy, 29 Tháng 3",
     time: "19:00 - 22:00",
