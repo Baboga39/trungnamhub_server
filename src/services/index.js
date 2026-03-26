@@ -9,6 +9,8 @@ const activityService = require("./activityService");
 const activityAttendanceService = require("./activityAttendanceService");
 const reportService = require("./reportService"); 
 const mailService = require("./mailService/mailService");
+const approvalTokenService = require("./approvalTokenService");
+const documentService = require("./documentService");
 module.exports = {
   userService,
   memberService,
@@ -21,4 +23,6 @@ module.exports = {
   activityAttendanceService,
   reportService,
   mailService,
+  approvalTokenService,
+  documentService,
 };

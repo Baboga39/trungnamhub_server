@@ -30,6 +30,20 @@ async function deleteUser(req, res, next) {
   }
 }
 
+async function testSend(req, res) {
+  await sendDinnerInvitation({
+    toEmail: "ngochai06122002@gmail.com",
+    name: "Em bé của anh",
+    date: "Thứ Bảy, 29 Tháng 3",
+    time: "19:00 - 22:00",
+    location: "Ruby Koi Bistro",
+    address: "115 Nguyễn Hữu Thọ, Bà Rịa",
+    message: "Anh muốn chỉ dành cho em những điều tốt đẹp nhất 💖",
+  });
+
+  res.json({ message: "Sent!" });
+}
 
 
-module.exports = { getUsers, deleteUser, upsertUser };
+
+module.exports = { getUsers, deleteUser, upsertUser, testSend };

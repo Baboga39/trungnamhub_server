@@ -6,6 +6,7 @@ const gradeController = require("./gradeController");
 const activityController = require("./activityController");
 const activityAttendanceController = require("./activityAttendanceController");
 const reportController = require("./reportController");
+const documentController = require("./documentController");
 
 module.exports = {
   userController,
@@ -16,4 +17,5 @@ module.exports = {
   activityController,
   activityAttendanceController,
   reportController,
+  documentController,
 };

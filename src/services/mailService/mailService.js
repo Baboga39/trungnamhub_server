@@ -4,6 +4,7 @@ const nodemailer = require("nodemailer");
 const { google } = require("googleapis");
 const { createStyledExcelBuffer } = require("../../libs/excelHelper");
 const { renderReportTemplate } = require("../../libs/mailTemplateHelper");
+const buildDinnerInvitationHTML = require("../../libs/buildDinnerInvitationHTML");
 
 const sendReportMail = async ({ meta, attachments = [] }) => {
   const oAuth2Client = new google.auth.OAuth2(
@@ -30,23 +31,42 @@ const sendReportMail = async ({ meta, attachments = [] }) => {
     },
   });
 
-  const htmlContent = renderReportTemplate({
-    tenTruongDoan: meta.tenTruongDoan,
-    tieuDeBaoCao: meta.tieuDeBaoCao,
-    tenNguoiGui: meta.tenNguoiGui,
-    ngayGui: new Date().toLocaleDateString("vi-VN"),
-    loaiBaoCao: meta.loaiBaoCao,
-    soLuongFile: attachments.length,
-    emailHeThong: process.env.GMAIL_USER,
-  });
+  // const htmlContent = renderReportTemplate({
+  //   tenTruongDoan: meta.tenTruongDoan,
+  //   tieuDeBaoCao: meta.tieuDeBaoCao,
+  //   tenNguoiGui: meta.tenNguoiGui,
+  //   ngayGui: new Date().toLocaleDateString("vi-VN"),
+  //   loaiBaoCao: meta.loaiBaoCao,
+  //   soLuongFile: attachments.length,
+  //   emailHeThong: process.env.GMAIL_USER,
+  // });
+  
 
-  const mailOptions = {
-    from: `"Hệ thống Trung Nam" <${process.env.GMAIL_USER}>`,
-    to: meta.toEmail,
-    subject: `📊 ${meta.tieuDeBaoCao}`,
-    html: htmlContent,
-    attachments,
-  };
+
+//   const mailOptions = {
+//     from: `"Hệ thống Trung Nam" <${process.env.GMAIL_USER}>`,
+//     to: meta.toEmail,
+//     subject: `📊 ${meta.tieuDeBaoCao}`,
+//     html: htmlContent,
+//     attachments,
+//   };
+
+const htmlContent = buildDinnerInvitationHTML({
+  name: meta.name || "Em yêu",
+  date: meta.date,
+  time: meta.time,
+  location: meta.location,
+  address: meta.address,
+  message: meta.message,
+});
+
+const mailOptions = {
+  from: `"Anh 💖" <${process.env.GMAIL_USER}>`,
+  to: meta.toEmail,
+  subject: `💌 ${meta.tieuDeBaoCao || "Lời mời ăn tối đặc biệt"}`,
+  html: htmlContent,
+  attachments,
+};
 
   await transporter.sendMail(mailOptions);
 

@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Em yêu, anh muốn mời em đi ăn tối</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f9f5f3;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #d67ba1 0%, #c45a8a 100%);
+            padding: 60px 40px;
+            text-align: center;
+            color: #ffffff;
+        }
+        
+        .header h1 {
+            font-size: 48px;
+            font-weight: 300;
+            margin-bottom: 10px;
+            font-family: Georgia, serif;
+            letter-spacing: 1px;
+        }
+        
+        .header p {
+            font-size: 24px;
+            font-weight: 400;
+            opacity: 0.95;
+        }
+
+        .love-message {
+            font-size: 18px;
+            font-style: italic;
+            color: #ffffff;
+            margin-top: 20px;
+            opacity: 0.9;
+            font-family: Georgia, serif;
+        }
+        
+        .quote-box {
+            background-color: #faf5f3;
+            border-left: 4px solid #d67ba1;
+            padding: 20px;
+            margin-bottom: 30px;
+            font-style: italic;
+            color: #555;
+        }
+
+        .content {
+            padding: 60px 40px;
+        }
+        
+        .divider {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin: 30px 0;
+            text-align: center;
+        }
+        
+        .divider-line {
+            height: 1px;
+            width: 40px;
+            background-color: #d67ba1;
+            opacity: 0.3;
+        }
+        
+        .heart {
+            font-size: 20px;
+            color: #d67ba1;
+        }
+        
+        .intro {
+            text-align: center;
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 40px;
+            font-style: italic;
+            line-height: 1.8;
+        }
+        
+        .details-section {
+            margin-bottom: 40px;
+        }
+        
+        .detail-item {
+            display: table;
+            width: 100%;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #faf8f6;
+            border-radius: 8px;
+        }
+        
+        .detail-icon {
+            display: table-cell;
+            width: 50px;
+            text-align: center;
+            color: #d67ba1;
+            font-size: 24px;
+            vertical-align: top;
+            padding-right: 15px;
+        }
+        
+        .detail-content {
+            display: table-cell;
+            vertical-align: top;
+        }
+        
+        .detail-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #999;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .detail-text {
+            font-size: 16px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .detail-subtext {
+            font-size: 14px;
+            color: #666;
+            margin-top: 3px;
+        }
+        
+        .quote {
+            border-left: 4px solid #d67ba1;
+            padding-left: 20px;
+            margin: 40px 0;
+            font-size: 16px;
+            color: #555;
+            font-style: italic;
+            line-height: 1.8;
+        }
+        
+        .menu-section {
+            margin-bottom: 40px;
+        }
+        
+        .menu-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+            text-transform: capitalize;
+        }
+        
+        .menu-list {
+            list-style: none;
+        }
+        
+        .menu-item {
+            padding: 10px 0;
+            padding-left: 25px;
+            position: relative;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        .menu-item:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #d67ba1;
+            font-weight: bold;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            width: 100%;
+            padding: 18px 40px;
+            margin: 30px 0;
+            background: linear-gradient(135deg, #d67ba1 0%, #c45a8a 100%);
+            color: #ffffff;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 15px rgba(214, 123, 161, 0.3);
+        }
+        
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(214, 123, 161, 0.4);
+        }
+        
+        .footer {
+            background-color: #faf8f6;
+            padding: 30px 40px;
+            text-align: center;
+            border-top: 1px solid #e8e0da;
+        }
+        
+        .footer-text {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 10px;
+        }
+        
+        .confirmation-deadline {
+            font-size: 14px;
+            color: #d67ba1;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        
+        .floatRight {
+            float: right;
+            margin-left: 10px;
+        }
+        
+        @media (max-width: 600px) {
+            .content {
+                padding: 40px 20px;
+            }
+            
+            .header {
+                padding: 40px 20px;
+            }
+            
+            .header h1 {
+                font-size: 36px;
+            }
+            
+            .detail-item {
+                display: block;
+            }
+            
+            .detail-icon {
+                display: block;
+                margin-bottom: 10px;
+            }
+            
+            .detail-content {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>Em yêu</h1>
+            <p>Anh muốn mời em đi ăn tối</p>
+            <div class="love-message">
+                "Anh muốn dành thời gian chỉ có mình em"
+            </div>
+        </div>
+        
+        <!-- Content -->
+        <div class="content">
+            <div class="divider">
+                <div class="divider-line"></div>
+                <div class="heart">♥</div>
+                <div class="divider-line"></div>
+            </div>
+
+            <div class="quote-box">
+                "Anh không chỉ muốn em để có bạn ăn cơm, mà vì em là người anh muốn ở bên. Một bữa ăn với em còn có giá trị hơn cả tiệc xa xỉ mà không có em."
+            </div>
+            
+            <p class="intro">
+                Hãy để anh chăm sóc em và dành cho em những điều tốt đẹp nhất<br>
+                trong một buổi tối chỉ dành cho chúng ta
+            </p>
+            
+            <!-- Details -->
+            <div class="details-section">
+                <div class="detail-item">
+                    <div class="detail-icon">📅</div>
+                    <div class="detail-content">
+                        <div class="detail-label">Ngày</div>
+                        <div class="detail-text">Thứ Bảy, 12 Tháng 4</div>
+                    </div>
+                </div>
+                
+                <div class="detail-item">
+                    <div class="detail-icon">🕖</div>
+                    <div class="detail-content">
+                        <div class="detail-label">Giờ</div>
+                        <div class="detail-text">19:00 - 22:00</div>
+                    </div>
+                </div>
+                
+                <div class="detail-item">
+                    <div class="detail-icon">📍</div>
+                    <div class="detail-content">
+                        <div class="detail-label">Địa điểm</div>
+                        <div class="detail-text">Ruby Koi Bistro</div>
+                        <div class="detail-subtext">
+115 Nguyễn Hữu Thọ, Bà Rịa, Hồ Chí Minh, Vietnam </div>
+                    </div>
+                </div>
+                
+                <div class="detail-item">
+                    <div class="detail-icon">👥</div>
+                    <div class="detail-content">
+                        <div class="detail-label">Số lượng khách</div>
+                        <div class="detail-text">2 người</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quote -->
+            <div class="quote">
+                "Cuộc sống được sáng rỡ bởi những khoảnh khắc đặc biệt cùng những người mình yêu thương. Hãy cùng mình tạo nên một buổi tối không quên."
+            </div>
+            
+            <!-- Menu -->
+           <div class="menu-section">
+    <h3 class="menu-title" style="text-align: center; font-size: 20px;">
+        Menu tối dành cho chị bé ♥
+    </h3>
+
+    <div style="text-align: center; margin-top: 20px;">
+
+        <!-- Khai vị -->
+        <div style="margin-bottom: 20px;">
+            <div style="font-size: 12px; letter-spacing: 2px; color: #d67ba1; text-transform: uppercase;">
+                Khai vị
+            </div>
+            <div style="font-size: 16px; font-weight: 500;">
+                Hai ly vang đỏ Ý cao cấp
+            </div>
+            <div style="font-size: 13px; color: #777; font-style: italic;">
+                Bacon Crostini
+            </div>
+        </div>
+
+        <!-- Divider -->
+        <div style="margin: 15px 0; color: #d67ba1;">•</div>
+
+        <!-- Main 1 -->
+        <div style="margin-bottom: 20px;">
+            <div style="font-size: 12px; letter-spacing: 2px; color: #d67ba1; text-transform: uppercase;">
+                Món chính 1
+            </div>
+            <div style="font-size: 16px; font-weight: 500;">
+                Tôm đút lò nướng phô mai & chanh
+            </div>
+        </div>
+
+        <div style="margin: 15px 0; color: #d67ba1;">•</div>
+
+        <!-- Main 2 -->
+        <div style="margin-bottom: 20px;">
+            <div style="font-size: 12px; letter-spacing: 2px; color: #d67ba1; text-transform: uppercase;">
+                Món chính 2
+            </div>
+            <div style="font-size: 16px; font-weight: 500;">
+                Lườn ngỗng áp chảo sốt hồng
+            </div>
+        </div>
+
+        <div style="margin: 15px 0; color: #d67ba1;">•</div>
+
+        <!-- Sorbet -->
+        <div style="margin-bottom: 20px;">
+            <div style="font-size: 12px; letter-spacing: 2px; color: #d67ba1; text-transform: uppercase;">
+                Thanh tẩy vị giác
+            </div>
+            <div style="font-size: 14px; font-style: italic; color: #777;">
+                Sorbet trái cây
+            </div>
+        </div>
+
+        <div style="margin: 15px 0; color: #d67ba1;">•</div>
+
+        <!-- Main 3 -->
+        <div style="margin-bottom: 20px;">
+            <div style="font-size: 12px; letter-spacing: 2px; color: #d67ba1; text-transform: uppercase;">
+                Món chính 3
+            </div>
+            <div style="font-size: 16px; font-weight: 500;">
+                Đầu thăn ngoại bò Úc steak
+            </div>
+            <div style="font-size: 13px; color: #777; font-style: italic;">
+                Khoai tây nghiền & sốt tiêu đen
+            </div>
+        </div>
+
+        <div style="margin: 15px 0; color: #d67ba1;">•</div>
+
+        <!-- Dessert -->
+        <div>
+            <div style="font-size: 12px; letter-spacing: 2px; color: #d67ba1; text-transform: uppercase;">
+                Tráng miệng
+            </div>
+            <div style="font-size: 16px; font-weight: 500;">
+                Vodka Chocolate Affogato ♥
+            </div>
+        </div>
+
+    </div>
+</div>
+            
+            <!-- CTA Button (for email clients that support it) -->
+            <button class="cta-button">Xác nhận tham dự</button>
+            
+            <!-- Email link alternative -->
+            <p style="text-align: center; margin-bottom: 30px;">
+                <a href="mailto:?subject=Xác nhận tham dự - Mời ăn tối lãng mạn&body=Tôi xác nhận tham dự buổi tối lãng mạn vào ngày 12 Tháng 4" 
+                   style="color: #d67ba1; text-decoration: underline; font-weight: 600;">
+                    Hoặc gửi email xác nhận
+                </a>
+            </p>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p class="footer-text">Cảm ơn bạn đã nhận thiệp mời</p>
+            <p class="confirmation-deadline">Vui lòng xác nhận trước ngày 5 Tháng 4</p>
+            <p class="footer-text" style="margin-top: 20px;">
+                © 2024 Mời ăn tối lãng mạn. Mọi quyền được bảo vệ.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
