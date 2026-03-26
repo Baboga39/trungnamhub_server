@@ -4,7 +4,7 @@ const nodemailer = require("nodemailer");
 const { google } = require("googleapis");
 const { createStyledExcelBuffer } = require("../../libs/excelHelper");
 const { renderReportTemplate } = require("../../libs/mailTemplateHelper");
-const buildDinnerInvitationHTML = require("../../libs/buildDinnerInvitationHTML");
+const buildDinnerInvitationHTML = require("./templates/buildDinnerHTML");
 
 const sendReportMail = async ({ meta, attachments = [] }) => {
   const oAuth2Client = new google.auth.OAuth2(
