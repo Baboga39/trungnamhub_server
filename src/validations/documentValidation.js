@@ -11,7 +11,13 @@ const uploadDocumentSchema = Joi.object({
       "string.min": `"title" must be at least 3 characters`,
       "string.max": `"title" must not exceed 255 characters`,
     }),
-
+  fileUrl: Joi.string().uri().required().messages({
+    "string.empty": `"fileUrl" is required`,
+    "string.uri": `"fileUrl" must be a valid URL`,
+  }),
+  publicId: Joi.string().required().messages({
+    "string.empty": `"publicId" is required`,
+  }),
 })
 
 // 🟢 2. Send Approval
@@ -90,7 +96,17 @@ const resubmitDocumentSchema = Joi.object({
     .messages({
       "number.base": `"documentId" must be a number`,
       "any.required": `"documentId" is required`,
-    })
+    }),
+  fileUrl: Joi.string().uri().required().messages({
+    "string.empty": `"fileUrl" is required`,
+    "string.uri": `"fileUrl" must be a valid URL`,
+  }),
+  publicId: Joi.string().required().messages({
+    "string.empty": `"publicId" is required`,
+  }),
+  title: Joi.string()
+    .min(3)
+    .max(255)
 })
 
 const getDocumentDetailSchema = Joi.object({

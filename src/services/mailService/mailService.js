@@ -5,6 +5,7 @@ const { google } = require("googleapis");
 const { createStyledExcelBuffer } = require("../../libs/excelHelper");
 const { renderReportTemplate } = require("../../libs/mailTemplateHelper");
 const buildDinnerInvitationHTML = require("./templates/buildDinnerHTML");
+const buildApprovalHTML = require("./templates/buildApprovalHTML");
 
 const sendReportMail = async ({ meta, attachments = [] }) => {
   const oAuth2Client = new google.auth.OAuth2(
@@ -73,6 +74,53 @@ const mailOptions = {
   console.log(`📧 Report email sent to ${meta.toEmail}`);
 };
 
+const sendApprovalMail = async ({ documentTitle, reviewerName, senderName, approvalLink }) => {
+  const oAuth2Client = new google.auth.OAuth2(
+    process.env.GMAIL_CLIENT_ID,
+    process.env.GMAIL_CLIENT_SECRET,
+    process.env.GMAIL_REDIRECT_URI
+  );
+
+  oAuth2Client.setCredentials({
+    refresh_token: process.env.GMAIL_REFRESH_TOKEN,
+  });
+
+  const accessToken = await oAuth2Client.getAccessToken();
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      type: "OAuth2",
+      user: process.env.GMAIL_USER,
+      clientId: process.env.GMAIL_CLIENT_ID,
+      clientSecret: process.env.GMAIL_CLIENT_SECRET,
+      refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+      accessToken: accessToken?.token,
+    },
+  });
+
+  const htmlContent = buildApprovalHTML({
+    documentTitle,
+    reviewerName,
+    senderName,
+    approvalLink
+  });
+
+  // Theo yêu cầu của User: Hardcode gửi mail test tới ngochai06122002@gmail.com
+  const testEmailTarget = "ngochai06122002@gmail.com";
+
+  const mailOptions = {
+    from: `"Hệ thống Trung Nam" <${process.env.GMAIL_USER}>`,
+    to: testEmailTarget,
+    subject: `🔔 Yêu cầu phê duyệt: ${documentTitle}`,
+    html: htmlContent,
+  };
+
+  await transporter.sendMail(mailOptions);
+  console.log(`📧 Approval email sent to TEST: ${testEmailTarget} (intended for ${reviewerName})`);
+};
+
 module.exports = {
   sendReportMail,
+  sendApprovalMail,
 };

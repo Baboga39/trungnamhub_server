@@ -2,6 +2,7 @@
 
 const prisma = require("../libs/prisma");
 const crypto = require("crypto");
+const { sendApprovalMail } = require("./mailService/mailService");
 
 
 function generateToken() {
@@ -193,8 +194,7 @@ async function handleApprovalByUser({
 }
 
 
-async function createApprovalToken(documentId, reviewerIds, tx = prisma) {
-  console.log(reviewerIds.length)
+async function createApprovalToken(documentId, reviewerIds, senderUser, tx = prisma) {
   if (!reviewerIds?.length) {
     throw new Error("No reviewers provided");
   }
@@ -212,12 +212,33 @@ async function createApprovalToken(documentId, reviewerIds, tx = prisma) {
 
   const result = await tx.approvalToken.createMany({ data: tokens });
 
+  const links = tokens.map((t) => ({
+    reviewerId: t.reviewerId,
+    link: `${process.env.FRONTEND_URL}/approve?token=${t.token}`,
+  }));
+
+  const reviewers = await tx.user.findMany({
+    where: { id: { in: reviewerIds } },
+    select: { id: true, name: true, email: true },
+  });
+
+  console.log("Generated approval links:", links);
+
+  for (const { reviewerId, link } of links) {
+    const reviewer = reviewers.find((r) => r.id === reviewerId);
+    if (reviewer) {
+      sendApprovalMail({
+        documentTitle: document.title,
+        reviewerName: reviewer.name,
+        senderName: senderUser?.name || "Hệ thống",
+        approvalLink: link,
+      }).catch((err) => console.error("Lỗi khi gửi email:", err));
+    }
+  }
+
   return {
     count: result.count,
-    links: tokens.map((t) => ({
-      reviewerId: t.reviewerId,
-      link: `${process.env.FRONTEND_URL}/approve?token=${t.token}`,
-    })),
+    links,
   };
 }
 
@@ -256,10 +277,33 @@ async function getApprovalStatus(documentId) {
 }
 
 
+async function getPendingApprovals(reviewerId) {
+  return prisma.approvalToken.findMany({
+    where: {
+      reviewerId: Number(reviewerId),
+      status: "PENDING",
+      document: {
+        status: "PENDING", 
+      }
+    },
+    include: {
+      document: {
+        include: { 
+          createdBy: { select: { name: true, email: true } }
+        }
+      }
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+}
+
 module.exports = {
   createApprovalToken,
   handleApproval,
   handleApprovalByUser,
   getApprovalDetail,
   getApprovalStatus,
+  getPendingApprovals,
 };

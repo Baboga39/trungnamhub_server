@@ -1,9 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const multer = require("multer");
 const middlewares = require("../middlewares");
-
-const upload = multer({ storage: multer.memoryStorage() });
 
 const controller = require("../controllers/documentController");
 const {
@@ -11,12 +8,12 @@ const {
   sendApprovalSchema,
   handleApprovalSchema,
   handleApprovalByUserSchema,
+  resubmitDocumentSchema,
 } = require("../validations/documentValidation");
 
 router.post(
-  "/upload",
+  "/create",
   middlewares.auth,
-  upload.single("file"),
   middlewares.validation(uploadDocumentSchema),
   controller.uploadDocument,
 );
@@ -42,10 +39,21 @@ router.post(
   controller.handleApprovalByUser,
 );
 
-router.post("/resubmit", middlewares.auth, upload.single("file"), controller.resubmitDocument);
+router.post(
+  "/resubmit",
+  middlewares.auth,
+  middlewares.validation(resubmitDocumentSchema),
+  controller.resubmitDocument
+);
 
 router.get("/getDocument/:id", controller.getDocumentDetail);
 
 router.get("/getAllDocument", middlewares.auth, controller.getAllDocument);
+
+router.get("/pending-approvals", middlewares.auth, controller.getPendingApprovals);
+
+router.get("/approve-detail/:token", middlewares.auth, controller.getApprovalDetail);
+
+router.delete("/delete/:id", middlewares.auth, controller.deleteDocument);
 
 module.exports = router;

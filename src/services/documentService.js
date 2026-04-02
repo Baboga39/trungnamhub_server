@@ -1,7 +1,7 @@
 // src/services/documentService.js
 
 const prisma = require("../libs/prisma");
-const { uploadToCloudinary } = require("../libs/cloudinaryService");
+const { deleteFromCloudinary, extractPublicId } = require("../libs/cloudinaryService");
 const { createApprovalToken } = require("./approvalTokenService");
 
 // ========================
@@ -73,31 +73,29 @@ function validateResubmit(doc) {
 // ========================
 
 // 👉 Upload document mới
-async function uploadDocument(file, data, user) {
-  const uploaded = await uploadToCloudinary(file);
-
-  return prisma.$transaction(async (tx) => {
-    const document = await createDocumentDB(
+async function uploadDocument(data, user) {
+  return await prisma.$transaction(async (tx) => {
+    return await createDocumentDB(
       {
         title: data.title,
-        fileUrl: uploaded.secure_url,
+        fileUrl: data.fileUrl,
         createdById: user.userId,
         status: "PENDING",
         version: 1,
       },
       tx
     );
-    return document;
   });
 }
 
-async function resubmitDocument(id, file, user) {
-  const uploaded = await uploadToCloudinary(file);
+async function resubmitDocument(id, data, user) {
+  let oldFileUrl;
 
-  return prisma.$transaction(async (tx) => {
-  
+  const result = await prisma.$transaction(async (tx) => {
     const doc = await getDocumentByIdDB(Number(id), tx);
     validateResubmit(doc);
+
+    oldFileUrl = doc.fileUrl;
 
     const oldVersion = doc.version;
 
@@ -119,26 +117,21 @@ async function resubmitDocument(id, file, user) {
     await updateDocumentDB(
       id,
       {
-        fileUrl: uploaded.secure_url,
+        fileUrl: data.fileUrl,
         version: newVersion,
         status: "PENDING",
       },
       tx
     );
 
-    console.log("Rejected reviewers:", rejectedReviewerIds);
-await createApprovalToken(
-  id,
-  rejectedReviewerIds,
-  tx
-);
+    await createApprovalToken(id, rejectedReviewerIds, tx);
 
     await createAuditLog(tx, {
       documentId: id,
       reviewerId: user.userId,
       action: "RESUBMIT",
       version: newVersion,
-      fileUrl: uploaded.secure_url,
+      fileUrl: data.fileUrl,
     });
 
     return {
@@ -147,8 +140,59 @@ await createApprovalToken(
       reviewers: rejectedReviewerIds,
     };
   });
+
+  // After DB is successfully updated, we delete the old file from Cloudinary 
+  // so we don't hold onto dead versions.
+  if (oldFileUrl) {
+    const oldPublicId = extractPublicId(oldFileUrl);
+    if (oldPublicId) {
+      deleteFromCloudinary(oldPublicId).catch((err) =>
+        console.error("Failed to delete old file from Cloudinary:", err)
+      );
+    }
+  }
+
+  return result;
 }
 
+
+// 👉 Xóa tài liệu
+async function deleteDocument(id, user) {
+  return await prisma.$transaction(async (tx) => {
+    const doc = await getDocumentByIdDB(Number(id), tx);
+    if (!doc) {
+      throw new Error("Document not found");
+    }
+
+    // BẢO MẬT: Chỉ người tạo mới có quyền xóa
+    // if (doc.createdById !== user.userId) {
+    //   throw new Error("Bạn không có quyền xóa tài liệu của người khác");
+    // }
+
+    // Xóa các dữ liệu liên quan (Approvals, Tokens) phòng hờ DB không set cascade
+    await deleteOldTokens(Number(id), tx);
+    await tx.approval.deleteMany({
+      where: { documentId: Number(id) }
+    });
+
+    // Xóa document chính
+    await tx.document.delete({
+      where: { id: Number(id) }
+    });
+
+    // Dọn rác Cloudinary
+    if (doc.fileUrl) {
+      const publicId = extractPublicId(doc.fileUrl);
+      if (publicId) {
+        deleteFromCloudinary(publicId).catch((err) =>
+          console.error("Failed to delete file from Cloudinary after document deletion:", err)
+        );
+      }
+    }
+
+    return { success: true, message: "Xóa tài liệu thành công" };
+  });
+}
 
 // 👉 get detail
 async function getDocumentById(id) {
@@ -174,6 +218,14 @@ async function getDocuments(filter = {}) {
     where: {
       ...(filter.status && { status: filter.status }),
     },
+    include: {
+      createdBy: {
+        select: {
+          name: true,
+          email: true,
+        }
+      }
+    },
     orderBy: {
       createdAt: "desc",
     },
@@ -187,6 +239,7 @@ async function getDocuments(filter = {}) {
 module.exports = {
   uploadDocument,
   resubmitDocument,
+  deleteDocument,
   getDocumentById,
   getDocuments,
 };

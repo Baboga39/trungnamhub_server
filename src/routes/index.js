@@ -7,7 +7,8 @@ const dashboardRoutes = require("./dashboard.routes");
 const activitiesRoutes = require("./activitiesRoutes");
 const activityAttendanceRoutes = require("./activityAttendanceRoutes");
 const reportRoutes = require("./reportRoutes"); 
-const documentRoutes = require("./documentRoute")
+const documentRoutes = require("./documentRoute");
+const fileRoutes = require("./fileRoute");
 
 module.exports = (app) => {
   // User
@@ -30,4 +31,6 @@ module.exports = (app) => {
   app.use("/api/v1/reports", reportRoutes);
 
   app.use("/api/v1/documents", documentRoutes);
+
+  app.use("/api/v1/files", fileRoutes);
 };
