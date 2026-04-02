@@ -164,12 +164,10 @@ async function deleteDocument(id, user) {
       throw new Error("Document not found");
     }
 
-    // BẢO MẬT: Chỉ người tạo mới có quyền xóa
-    // if (doc.createdById !== user.userId) {
-    //   throw new Error("Bạn không có quyền xóa tài liệu của người khác");
-    // }
+    if (doc.createdById !== user.userId) {
+      throw new Error("Bạn không có quyền xóa tài liệu của người khác");
+    }
 
-    // Xóa các dữ liệu liên quan (Approvals, Tokens) phòng hờ DB không set cascade
     await deleteOldTokens(Number(id), tx);
     await tx.approval.deleteMany({
       where: { documentId: Number(id) }
