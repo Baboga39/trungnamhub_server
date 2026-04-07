@@ -13,11 +13,11 @@ const userUpsertSchema = Joi.object({
     "any.required": "Email là bắt buộc",
   }),
 
-  password: Joi.string().min(6).max(100).required().messages({
+  password: Joi.string().min(6).max(100).optional().messages({
     "string.min": "Mật khẩu tối thiểu 6 ký tự",
     "any.required": "Mật khẩu là bắt buộc",
   }),
-
+  branch: Joi.string().optional(),
   startYear: Joi.string()
     .pattern(/^\d{2}\/\d{2}\/\d{4}$/)
     .message("startYear must be in dd/MM/yyyy format")

@@ -5,12 +5,12 @@ const { memberSchema } = require("../validations/member.validator");
 
 const router = express.Router();
 
-router.get("/", controller.getAll);
-router.get("/active", controller.getMembersActive);
+router.get("/", middlewares.auth, controller.getAll);
+router.get("/active", middlewares.auth, controller.getMembersActive);
 router.post("/",middlewares.auth,middlewares.validation(memberSchema), controller.upsert);  
-router.delete("/:id", controller.remove); 
-router.patch("/status", controller.changeStatus);
-router.get("/:memberId/history", controller.getMemberStatusHistory);
+router.delete("/:id", middlewares.auth, controller.remove); 
+router.patch("/status", middlewares.auth, controller.changeStatus);
+router.get("/:memberId/history", middlewares.auth, controller.getMemberStatusHistory);
 router.delete("/history/:id", middlewares.auth, controller.deleteHistoryById);
 
 

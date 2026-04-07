@@ -37,6 +37,7 @@ model User {
   sumEvent  Int?
   role      String    @default("user")
   createdAt DateTime  @default(now())
+  branch    String?
 
   members           Member[]           @relation("MemberOwner")
   createdMembers    Member[]           @relation("MemberCreator")

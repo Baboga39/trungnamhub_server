@@ -1,24 +1,69 @@
 const { parseDate } = require("../libs/parseDate");
 const prisma = require("../libs/prisma");
 
-async function upsertMember(data,user) {
+function normalizeBranch(branch) {
+  return branch?.trim().normalize("NFC");
+}
+
+function buildBranchFilter(user) {
+  if (user?.role === "admin") return {};
+  console.log(user.branch)
+
+  const branch = normalizeBranch(user?.branch);
+
+  if (branch) return { branch };
+
+  throw { statusCode: 403, message: "User does not have a branch assigned" };
+}
+async function upsertMember(data, user) {
+  const { id, ...rest } = data;
   return prisma.member.upsert({
-    where: { id: data.id || 0 },
-    update: { ...data, birthDate: parseDate(data.birthDate), },
-    create: { ...data, createdById: user.userId, birthDate: parseDate(data.birthDate) },
+    where: { id: id || 0 },
+    update: {
+      ...rest,
+      birthDate: parseDate(rest.birthDate),
+    },
+    create: {
+      ...rest,
+      createdById: user.userId,
+      birthDate: parseDate(rest.birthDate),
+      branch: rest.branch || user.branch,
+    },
   });
 }
 
-async function getMembers() {
+async function getMembers(user) {
   return prisma.member.findMany({
-    include: { user: true },
+    where: buildBranchFilter(user),
+    select: {
+      id: true,
+      name: true,
+      birthDate: true,
+      gender: true,
+      parish: true,
+      church: true,
+      startYear: true,
+      branch: true,
+      active: true,
+      contact: true,
+      user: { select: { id: true, name: true, email: true } },
+    },
   });
 }
 
-async function getMembersActive(){
+async function getMembersActive(user) {
+  const branchFilter = buildBranchFilter(user);
   return prisma.member.findMany({
-    where: { active: true },
-    include: { user: true },
+    where: { active: true, ...buildBranchFilter(user) },
+    select: {
+      id: true,
+      name: true,
+      birthDate: true,
+      gender: true,
+      branch: true,
+      contact: true,
+      user: { select: { id: true, name: true, email: true } },
+    },
   });
 }
 
@@ -36,37 +81,26 @@ async function softDeleteMember(id) {
   });
 }
 
-async function changeMemberStatus( memberId, dateChange, note) {
-
-  const member = await prisma.member.findUnique({
-    where: { id: memberId },
-  });
-
-  if (!member) {
-    throw new Error("Member not found");
-  }
+async function changeMemberStatus(memberId, dateChange, note) {
+  const member = await prisma.member.findUnique({ where: { id: memberId } });
+  if (!member) throw { statusCode: 404, message: "Member not found" };
 
   const newStatus = !member.active;
   const date = dateChange ? new Date(dateChange) : new Date();
 
-  return await prisma.$transaction(async (tx) => {
-
+  return prisma.$transaction(async (tx) => {
     const updatedMember = await tx.member.update({
       where: { id: memberId },
-      data: {
-        active: newStatus,
-      },
+      data: { active: newStatus },
     });
-
     await tx.memberStatusHistory.create({
       data: {
         memberId,
-        status: newStatus, 
+        status: newStatus,
         date,
         note: note || (newStatus ? "Activated" : "Deactivated"),
       },
     });
-
     return updatedMember;
   });
 }
@@ -74,15 +108,16 @@ async function changeMemberStatus( memberId, dateChange, note) {
 async function getMemberStatusHistory(memberId) {
   return prisma.memberStatusHistory.findMany({
     where: { memberId: Number(memberId) },
-    orderBy: { date: 'desc' },
+    orderBy: { date: "desc" },
   });
 }
 
 async function deleteHistoryById(id) {
   return prisma.memberStatusHistory.delete({
-    where: { id: Number(id) || id },
+    where: { id: Number(id) },
   });
 }
+
 module.exports = {
   upsertMember,
   getMembers,

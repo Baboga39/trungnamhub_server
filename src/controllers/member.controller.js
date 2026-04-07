@@ -2,8 +2,7 @@ const services = require("../services");
 
 async function upsert(req, res, next) {
   try {
-    const user = req.user;
-    const member = await services.memberService.upsertMember(req.body, user);
+    const member = await services.memberService.upsertMember(req.body, req.user);
     return res.ok(member, "Member upsert success");
   } catch (err) {
     next(err);
@@ -12,7 +11,7 @@ async function upsert(req, res, next) {
 
 async function getAll(req, res, next) {
   try {
-    const members = await services.memberService.getMembers();
+    const members = await services.memberService.getMembers(req.user);
     return res.ok(members, "Get members success");
   } catch (err) {
     next(err);
@@ -31,7 +30,7 @@ async function getById(req, res, next) {
 
 async function getMembersActive(req, res, next) {
   try {
-    const members = await services.memberService.getMembersActive();
+    const members = await services.memberService.getMembersActive(req.user);
     return res.ok(members, "Get members success");
   } catch (err) {
     next(err);
@@ -49,8 +48,8 @@ async function remove(req, res, next) {
 
 async function changeStatus(req, res, next) {
   try {
-    const {memberId, dateChange, note } = req.body;
-    const member = await services.memberService.changeMemberStatus(memberId, dateChange);
+    const { memberId, dateChange, note } = req.body;
+    const member = await services.memberService.changeMemberStatus(memberId, dateChange, note);
     return res.ok(member, "Member status changed successfully");
   } catch (err) {
     next(err);
@@ -59,21 +58,29 @@ async function changeStatus(req, res, next) {
 
 async function getMemberStatusHistory(req, res, next) {
   try {
-    const memberId = req.params.memberId;
-    const memberStatusHistory = await services.memberService.getMemberStatusHistory(memberId);
+    const memberStatusHistory = await services.memberService.getMemberStatusHistory(req.params.memberId);
     return res.ok(memberStatusHistory, "Member status history fetched successfully");
   } catch (err) {
     next(err);
   }
 }
+
 async function deleteHistoryById(req, res, next) {
   try {
-    const { id } = req.params;
-    await services.memberService.deleteHistoryById(id);
+    await services.memberService.deleteHistoryById(req.params.id);
     return res.ok(null, "History deleted successfully");
   } catch (err) {
     next(err);
   }
 }
 
-module.exports = { upsert, getAll, getById, remove, getMembersActive, changeStatus , getMemberStatusHistory, deleteHistoryById  };
+module.exports = {
+  upsert,
+  getAll,
+  getById,
+  remove,
+  getMembersActive,
+  changeStatus,
+  getMemberStatusHistory,
+  deleteHistoryById,
+};
