@@ -48,11 +48,13 @@ router.post(
 
 router.get("/getDocument/:id", controller.getDocumentDetail);
 
-router.get("/getAllDocument", middlewares.auth, controller.getAllDocument);
+router.get("/getAllDocument", controller.getAllDocument);
 
 router.get("/pending-approvals", middlewares.auth, controller.getPendingApprovals);
 
 router.get("/approve-detail/:token", middlewares.auth, controller.getApprovalDetail);
+
+router.get("/:id/logs", middlewares.auth, controller.getApprovalLogs);
 
 router.delete("/delete/:id", middlewares.auth, controller.deleteDocument);
 

@@ -278,3 +278,16 @@ model ApprovalToken {
 
   @@index([documentId, reviewerId, version])
 }
+
+model ReportSchedule {
+  id             Int      @id @default(autoincrement())
+  name           String
+  templateId     String
+  cronExpression String
+  emails         Json
+  parameters     Json     @default("{}")
+  active         Boolean  @default(true)
+  lastRunAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

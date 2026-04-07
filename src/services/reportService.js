@@ -282,6 +282,8 @@ const generateMemberReportPDF = async (memberId, year, quarter, email) => {
         content: pdfBuffer,
       },
     ],
+  }).catch((err) => {
+    console.error("❌ Send Report Mail Promise Error: ", err);
   });
 
   return true;

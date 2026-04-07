@@ -1,22 +1,25 @@
-// src/routes/attendanceRoutes.js
+// src/routes/reportRoutes.js
 const express = require("express");
 const router = express.Router();
 const middlewares = require("../middlewares");
-const controller = require("../controllers")
-const { activitySchema } = require("../validations/activityValidation");
+const controller = require("../controllers");
 
-router.post(
-  "/member",
-  middlewares.auth, 
-  controller.reportController.generateMemberReport
+router.get(
+  "/templates",
+  middlewares.auth,
+  controller.reportController.getReportTemplates
 );
 
 router.post(
-  "/all-member",
-  middlewares.auth, 
-  controller.reportController.generateAllMemberReport
+  "/execute",
+  middlewares.auth,
+  controller.reportController.executeReport
 );
 
-
+// Schedule endpoints
+router.get("/schedules", middlewares.auth, controller.reportController.getSchedules);
+router.post("/schedules", middlewares.auth, controller.reportController.createSchedule);
+router.put("/schedules/:id", middlewares.auth, controller.reportController.updateSchedule);
+router.delete("/schedules/:id", middlewares.auth, controller.reportController.deleteSchedule);
 
 module.exports = router;

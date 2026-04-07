@@ -2,9 +2,7 @@
 
 const nodemailer = require("nodemailer");
 const { google } = require("googleapis");
-const { createStyledExcelBuffer } = require("../../libs/excelHelper");
 const { renderReportTemplate } = require("../../libs/mailTemplateHelper");
-const buildDinnerInvitationHTML = require("./templates/buildDinnerHTML");
 const buildApprovalHTML = require("./templates/buildApprovalHTML");
 
 const sendReportMail = async ({ meta, attachments = [] }) => {
@@ -32,49 +30,34 @@ const sendReportMail = async ({ meta, attachments = [] }) => {
     },
   });
 
-  // const htmlContent = renderReportTemplate({
-  //   tenTruongDoan: meta.tenTruongDoan,
-  //   tieuDeBaoCao: meta.tieuDeBaoCao,
-  //   tenNguoiGui: meta.tenNguoiGui,
-  //   ngayGui: new Date().toLocaleDateString("vi-VN"),
-  //   loaiBaoCao: meta.loaiBaoCao,
-  //   soLuongFile: attachments.length,
-  //   emailHeThong: process.env.GMAIL_USER,
-  // });
-  
+  try {
+    const htmlContent = renderReportTemplate({
+      tenTruongDoan: meta.tenTruongDoan,
+      tieuDeBaoCao: meta.tieuDeBaoCao,
+      tenNguoiGui: meta.tenNguoiGui,
+      ngayGui: new Date().toLocaleDateString("vi-VN"),
+      loaiBaoCao: meta.loaiBaoCao,
+      soLuongFile: attachments.length,
+      emailHeThong: process.env.GMAIL_USER,
+    });
+
+    const mailOptions = {
+      from: `"Hệ thống Trung Nam" <${process.env.GMAIL_USER}>`,
+      to: meta.toEmail,
+      subject: `📊 ${meta.tieuDeBaoCao || "Báo cáo Trung Nam"}`,
+      html: htmlContent,
+      attachments,
+    };
 
 
-//   const mailOptions = {
-//     from: `"Hệ thống Trung Nam" <${process.env.GMAIL_USER}>`,
-//     to: meta.toEmail,
-//     subject: `📊 ${meta.tieuDeBaoCao}`,
-//     html: htmlContent,
-//     attachments,
-//   };
-
-const htmlContent = buildDinnerInvitationHTML({
-  name: meta.name || "Em yêu",
-  date: meta.date,
-  time: meta.time,
-  location: meta.location,
-  address: meta.address,
-  message: meta.message,
-});
-
-const mailOptions = {
-  from: `"Anh 💖" <${process.env.GMAIL_USER}>`,
-  to: meta.toEmail,
-  subject: `💌 ${meta.tieuDeBaoCao || "Lời mời ăn tối đặc biệt"}`,
-  html: htmlContent,
-  attachments,
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 Report email sent successfully to ${meta.toEmail}`);
+  } catch (error) {
+    console.error("❌ Mails Service Error - Failed to send report email:", error);
+  }
 };
 
-  await transporter.sendMail(mailOptions);
-
-  console.log(`📧 Report email sent to ${meta.toEmail}`);
-};
-
-const sendApprovalMail = async ({ documentTitle, reviewerName, senderName, approvalLink }) => {
+const sendApprovalMail = async ({ toEmail, documentTitle, reviewerName, senderName, approvalLink }) => {
   const oAuth2Client = new google.auth.OAuth2(
     process.env.GMAIL_CLIENT_ID,
     process.env.GMAIL_CLIENT_SECRET,
@@ -106,18 +89,19 @@ const sendApprovalMail = async ({ documentTitle, reviewerName, senderName, appro
     approvalLink
   });
 
-  // Theo yêu cầu của User: Hardcode gửi mail test tới ngochai06122002@gmail.com
-  const testEmailTarget = "ngochai06122002@gmail.com";
-
   const mailOptions = {
     from: `"Hệ thống Trung Nam" <${process.env.GMAIL_USER}>`,
-    to: testEmailTarget,
+    to: toEmail,
     subject: `🔔 Yêu cầu phê duyệt: ${documentTitle}`,
     html: htmlContent,
   };
 
-  await transporter.sendMail(mailOptions);
-  console.log(`📧 Approval email sent to TEST: ${testEmailTarget} (intended for ${reviewerName})`);
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 Approval email sent to: ${toEmail} (intended for ${reviewerName})`);
+  } catch (error) {
+    console.error("❌ Mails Service Error - Failed to send approval email:", error);
+  }
 };
 
 module.exports = {

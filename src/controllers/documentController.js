@@ -1,6 +1,5 @@
 const services = require("../services")
 
-// 🟢 1. Upload document (create hoặc version mới)
 async function uploadDocument(req, res, next) {
   try {
     const data = req.body;
@@ -143,6 +142,15 @@ async function getApprovalDetail(req, res, next) {
     next(err);
   }
 }
+async function getApprovalLogs(req, res, next) {
+  try {
+    const { id } = req.params;
+    const logs = await services.approvalTokenService.getApprovalLogs(Number(id));
+    res.ok(logs, "Fetched approval logs successfully");
+  } catch (err) {
+    next(err);
+  }
+}
 
 module.exports = {
   uploadDocument,
@@ -155,4 +163,5 @@ module.exports = {
   getAllDocument,
   getPendingApprovals,
   getApprovalDetail,
+  getApprovalLogs,
 }

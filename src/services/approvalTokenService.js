@@ -222,12 +222,12 @@ async function createApprovalToken(documentId, reviewerIds, senderUser, tx = pri
     select: { id: true, name: true, email: true },
   });
 
-  console.log("Generated approval links:", links);
 
   for (const { reviewerId, link } of links) {
     const reviewer = reviewers.find((r) => r.id === reviewerId);
     if (reviewer) {
       sendApprovalMail({
+        toEmail: reviewer.email,
         documentTitle: document.title,
         reviewerName: reviewer.name,
         senderName: senderUser?.name || "Hệ thống",
@@ -299,6 +299,23 @@ async function getPendingApprovals(reviewerId) {
   });
 }
 
+async function getApprovalLogs(documentId) {
+  return prisma.approval.findMany({
+    where: { documentId },
+    include: {
+      reviewer: {
+        select: {
+          name: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+}
+
 module.exports = {
   createApprovalToken,
   handleApproval,
@@ -306,4 +323,5 @@ module.exports = {
   getApprovalDetail,
   getApprovalStatus,
   getPendingApprovals,
+  getApprovalLogs,
 };
