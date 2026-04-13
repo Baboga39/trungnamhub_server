@@ -2,15 +2,31 @@ const axios = require("axios");
 
 const PING_SERVICE = "https://ping-render-mz9o.onrender.com/health";
 
+let isRunning = false;
+
 async function pingService() {
+  if (isRunning) return; // tránh overlap
+  isRunning = true;
+
   try {
-    const res = await axios.get(PING_SERVICE);
-    console.log("Ping ping-service:", res.status);
+    const res = await axios.get(PING_SERVICE, {
+      timeout: 5000, // 5s timeout
+    });
+    console.log("✅ Ping success:", res.status);
   } catch (err) {
-    console.log("Ping service error:", err.message);
+    console.error("❌ Ping error:", {
+      message: err.message,
+      status: err.response?.status,
+    });
+  } finally {
+    isRunning = false;
   }
 }
 
-setInterval(pingService, 1 * 60 * 1000);
+function startPing() {
+  pingService(); 
 
-module.exports = pingService;
+  setInterval(pingService, 60 * 1000);
+}
+
+module.exports = startPing;
