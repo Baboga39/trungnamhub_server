@@ -9,6 +9,7 @@ const activityAttendanceRoutes = require("./activityAttendanceRoutes");
 const reportRoutes = require("./reportRoutes"); 
 const documentRoutes = require("./documentRoute");
 const fileRoutes = require("./fileRoute");
+const dinnerRoute = require("./external");
 
 module.exports = (app) => {
   // User
@@ -33,4 +34,6 @@ module.exports = (app) => {
   app.use("/api/v1/documents", documentRoutes);
 
   app.use("/api/v1/files", fileRoutes);
+
+  app.use("/api/v1/dinner", dinnerRoute);
 };

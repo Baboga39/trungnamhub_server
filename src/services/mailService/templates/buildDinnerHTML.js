@@ -1,10 +1,10 @@
 const buildDinnerInvitationHTML = ({
-  name = "Em yêu",
-  date = "Thứ Bảy, 12 Tháng 4",
+  name = "My Love",
+  date = "Saturday, April 12",
   time = "19:00 - 22:00",
   location = "Ruby Koi Bistro",
-  address = "115 Nguyễn Hữu Thọ, Bà Rịa, Hồ Chí Minh",
-  message = "Anh muốn dành thời gian chỉ có mình em",
+  address = "115 Nguyen Huu Tho, Ba Ria, Ho Chi Minh",
+  message = "I want to spend a special evening just with you",
 }) => {
   return `
   <html>
@@ -158,49 +158,41 @@ const buildDinnerInvitationHTML = ({
 
         <!-- MENU -->
         <div class="menu">
-          <h3>Six Course Tasting 🍷</h3>
+          <h3>Five Course Dinner 🍽️</h3>
 
           <div class="course">
             <div class="course-title">STARTER</div>
-            <div class="course-item">Two glasses of premium Italian red wine</div>
-            <div class="course-sub">Bacon Crostini</div>
+            <div class="course-item">Pumpkin Soup</div>
+            <div class="course-sub">Served with garlic butter toasted bread</div>
           </div>
 
           <div class="divider">•</div>
 
           <div class="course">
             <div class="course-title">MAIN COURSE 1</div>
-            <div class="course-item">Oven-baked shrimp with cheese & lemon</div>
+            <div class="course-item">Pan-seared Goose Breast</div>
           </div>
 
           <div class="divider">•</div>
 
           <div class="course">
             <div class="course-title">MAIN COURSE 2</div>
-            <div class="course-item">Pan-seared goose breast with pink sauce</div>
-          </div>
-
-          <div class="divider">•</div>
-
-          <div class="course">
-            <div class="course-title">PALATE CLEANSER</div>
-            <div class="course-item">Fruit sorbet</div>
+            <div class="course-item">Seafood Spring Rolls</div>
           </div>
 
           <div class="divider">•</div>
 
           <div class="course">
             <div class="course-title">MAIN COURSE 3</div>
-            <div class="course-item">Australian sirloin steak</div>
-            <div class="course-sub">Mashed potatoes & black pepper sauce</div>
+            <div class="course-item">Aukubee Steak</div>
+            <div class="course-sub">Served with potatoes & signature sauce</div>
           </div>
 
           <div class="divider">•</div>
 
           <div class="course">
             <div class="course-title">DESSERT</div>
-            <div class="course-item">Vodka Chocolate Affogato</div>
-            <div class="course-sub">❤️</div>
+            <div class="course-item">Coconut Ice Cream</div>
           </div>
 
         </div>

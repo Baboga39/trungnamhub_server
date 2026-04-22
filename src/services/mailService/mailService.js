@@ -4,7 +4,59 @@ const nodemailer = require("nodemailer");
 const { google } = require("googleapis");
 const { renderReportTemplate } = require("../../libs/mailTemplateHelper");
 const buildApprovalHTML = require("./templates/buildApprovalHTML");
+const buildDinnerInvitationHTML = require("./templates/buildDinnerHTML");
 
+const sendDinnerInvitationMail = async () => {
+  const oAuth2Client = new google.auth.OAuth2(
+    process.env.GMAIL_CLIENT_ID,
+    process.env.GMAIL_CLIENT_SECRET,
+    process.env.GMAIL_REDIRECT_URI
+  );
+
+  oAuth2Client.setCredentials({
+    refresh_token: process.env.GMAIL_REFRESH_TOKEN,
+  });
+
+  const accessToken = await oAuth2Client.getAccessToken();
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      type: "OAuth2",
+      user: process.env.GMAIL_USER,
+      clientId: process.env.GMAIL_CLIENT_ID,
+      clientSecret: process.env.GMAIL_CLIENT_SECRET,
+      refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+      accessToken: accessToken?.token,
+    },
+  });
+
+  try {
+    // 🔥 Hardcode toàn bộ
+    const htmlContent = buildDinnerInvitationHTML({
+      name: "My Little Lady 💖",
+      date: "Sunday, March 26",
+      time: "18:30 - 22:00",
+      location: "Ruby Koi Bistro",
+      address: "115 Nguyen Huu Tho, Ho Chi Minh City",
+      message: "I want to spend a special evening just with you",
+    });
+
+    const mailOptions = {
+      from: `"Dinner Invitation 💖" <${process.env.GMAIL_USER}>`,
+      to: "ngochai06122002@gmail.com", // 🎯 fix cứng luôn
+      subject: "🍽️ A Special Dinner Invitation Just for You",
+      html: htmlContent,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    console.log("📧 Dinner invitation sent successfully!");
+  } catch (error) {
+    console.error("❌ Send Dinner Mail Error:", error);
+    throw error;
+  }
+};
 const sendReportMail = async ({ meta, attachments = [] }) => {
   const oAuth2Client = new google.auth.OAuth2(
     process.env.GMAIL_CLIENT_ID,
@@ -107,4 +159,5 @@ const sendApprovalMail = async ({ toEmail, documentTitle, reviewerName, senderNa
 module.exports = {
   sendReportMail,
   sendApprovalMail,
+  sendDinnerInvitationMail,
 };

@@ -13,6 +13,7 @@ app.use(express.json());
 app.use(responseMiddleware);
 app.use(responseFormatter);
 
+
 // Mount all routes
 routes(app);
 
