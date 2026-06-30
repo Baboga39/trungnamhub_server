@@ -1,8 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const puppeteer = require("puppeteer-core");
-const chromium = require("@sparticuz/chromium");
+const puppeteer = require("puppeteer");
 
 const retry = async (fn, times = 3, delay = 500) => {
   let lastError;
@@ -35,7 +34,6 @@ const fillRows = (rows, maxRows) => {
 
 let browser;
 
-
 const getBrowser = async () => {
   if (browser) {
     try {
@@ -46,13 +44,19 @@ const getBrowser = async () => {
     }
   }
 
-  console.log("Launching Chromium...");
+  const isLinux = os.platform() === "linux";
+  console.log(`Launching Puppeteer (isLinux: ${isLinux})...`);
 
   browser = await puppeteer.launch({
-    executablePath: await chromium.executablePath(),
     headless: true,
-    args: chromium.args,
-    defaultViewport: chromium.defaultViewport,
+    args: isLinux
+      ? [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-gpu",
+        ]
+      : ["--no-sandbox", "--disable-setuid-sandbox"],
   });
 
   return browser;

@@ -16,6 +16,12 @@ router.post(
   controller.reportController.executeReport
 );
 
+router.post(
+  "/send-email",
+  middlewares.auth,
+  controller.reportController.sendReportEmailWithAttachment
+);
+
 // Schedule endpoints
 router.get("/schedules", middlewares.auth, controller.reportController.getSchedules);
 router.post("/schedules", middlewares.auth, controller.reportController.createSchedule);

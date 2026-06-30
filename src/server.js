@@ -17,10 +17,10 @@ app.use(responseFormatter);
 // Mount all routes
 routes(app);
 
-startPing();
-app.get("/health", (req, res) => {
-  res.status(200).send("OK");
-});
+// startPing();
+// app.get("/health", (req, res) => {
+//   res.status(200).send("OK");
+// });
 
 // Error handler
 app.use(errorHandler);

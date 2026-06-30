@@ -25,6 +25,51 @@ const executeReport = async (req, res, next) => {
   }
 };
 
+const sendReportEmailWithAttachment = async (req, res, next) => {
+  try {
+    const { email, subject, files } = req.body;
+    if (!email || !files || !Array.isArray(files)) {
+      return res.status(400).json({ message: "Thiếu thông số để gửi email báo cáo" });
+    }
+
+    const { sendReportMail } = require("../services/mailService/mailService");
+    
+    let emailString = "";
+    let firstEmail = "";
+    if (Array.isArray(email)) {
+      emailString = email.join(", ");
+      firstEmail = email[0];
+    } else {
+      emailString = email;
+      firstEmail = email;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: firstEmail },
+    });
+
+    const attachments = files.map(file => ({
+      filename: file.filename,
+      content: Buffer.from(file.content, "base64"),
+    }));
+
+    await sendReportMail({
+      meta: {
+        toEmail: emailString,
+        tenTruongDoan: user?.name || "Trung Nam Hub",
+        tieuDeBaoCao: subject || "Báo cáo Đoàn sinh",
+        tenNguoiGui: "Hệ thống Trung Nam",
+        loaiBaoCao: "Quý",
+      },
+      attachments,
+    });
+
+    return res.ok(null, "Đã gửi email báo cáo thành công!");
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ─── Schedule CRUD ────────────────────────────────────────────────────────────
 
 const getSchedules = async (req, res, next) => {
@@ -86,6 +131,7 @@ const deleteSchedule = async (req, res, next) => {
 module.exports = {
   getReportTemplates,
   executeReport,
+  sendReportEmailWithAttachment,
   getSchedules,
   createSchedule,
   updateSchedule,
