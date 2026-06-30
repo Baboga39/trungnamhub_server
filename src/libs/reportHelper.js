@@ -1,7 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const puppeteer = require("puppeteer");
+
+const chromium = require("@sparticuz/chromium");
+const puppeteer = require("puppeteer-core");
 
 const retry = async (fn, times = 3, delay = 500) => {
   let lastError;
@@ -32,6 +34,7 @@ const fillRows = (rows, maxRows) => {
   return result;
 };
 
+
 let browser;
 
 const getBrowser = async () => {
@@ -44,20 +47,25 @@ const getBrowser = async () => {
     }
   }
 
-  const isLinux = os.platform() === "linux";
-  console.log(`Launching Puppeteer (isLinux: ${isLinux})...`);
+  const isRender = !!process.env.RENDER;
 
-  browser = await puppeteer.launch({
-    headless: true,
-    args: isLinux
-      ? [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-gpu",
-        ]
-      : ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+  console.log("Running on Render:", isRender);
+
+  if (isRender) {
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    });
+  } else {
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+      ],
+    });
+  }
 
   return browser;
 };
