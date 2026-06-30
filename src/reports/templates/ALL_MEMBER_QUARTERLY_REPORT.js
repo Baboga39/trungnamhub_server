@@ -43,14 +43,18 @@ module.exports = {
     if (!files || files.length === 0) {
       return res.status(404).json({ message: "Không tìm thấy đoàn sinh hoạt động nào để xuất báo cáo" });
     }
+    await service.reportService.exportBatchAllPDF(
+  Number(year),
+  Number(quarter),
+  targetEmail
+);
 
-    const zipBuffer = await createZipBuffer(files);
+return res.ok(
+  null,
+  targetEmail
+    ? "Đã gửi báo cáo hàng loạt qua email thành công!"
+    : "Đã tạo báo cáo thành công!"
+);
 
-    const responseFiles = [{
-      filename: `BaoCaoDoanSinh_Q${quarter}_${year}.zip`,
-      content: Buffer.from(zipBuffer).toString("base64")
-    }];
-
-    return res.ok({ files: responseFiles }, targetEmail ? "Đã xuất báo cáo hàng loạt và gửi email thành công!" : "Đã xuất báo cáo hàng loạt thành công!");
   }
 };

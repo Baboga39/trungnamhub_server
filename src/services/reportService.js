@@ -13,34 +13,31 @@ const buildHTML = require("./mailService/templates/buildHTML");
 const limit = pLimit(6);
 
 
-const exportBatchPDF = async (memberIds, year, quarter,email) => {
-  const results = await Promise.all(
-    memberIds.map((id) =>
-      limit(() =>
-        retry(() => generateMemberReportPDF(id, year, quarter,email), 3)
-      )
-    )
-  );
+const exportBatchPDF = async (memberIds, year, quarter, email) => {
+  memberIds.forEach((id) => {
+    limit(() =>
+      retry(() => generateMemberReportPDF(id, year, quarter, email), 3)
+    ).catch((err) => {
+      console.error("Generate PDF Error:", err);
+    });
+  });
 
-  return results;
+  return true;
 };
 
-const exportBatchAllPDF = async (year, quarter,email) => {
+const exportBatchAllPDF = async (year, quarter, email) => {
   const members = await prisma.member.findMany({
     where: { active: true },
     select: { id: true },
   });
 
-  const memberIds = members.map((m) => m.id);
-  const results = await Promise.all(
-    memberIds.map((id) =>
-      limit(() =>
-        retry(() => generateMemberReportPDF(id, year, quarter,email), 3)
-      )
-    )
-  );
+  members.forEach((member) => {
+    limit(() =>
+      retry(() => generateMemberReportPDF(member.id, year, quarter, email), 3)
+    ).catch(console.error);
+  });
 
-  return results;
+  return true;
 };
 
 
@@ -301,10 +298,7 @@ const generateMemberReportPDF = async (memberId, year, quarter, email) => {
     });
   }
 
-  return {
-    filename: `${data.name}_Q${quarter}_${year}.pdf`,
-    buffer: pdfBuffer,
-  };
+  return true
 };
 
 
