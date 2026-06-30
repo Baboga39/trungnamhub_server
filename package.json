@@ -7,7 +7,6 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "postinstall": "npx puppeteer browsers install chrome",
     "seed": "node prisma/seedGradeCategory.js"
   },
   "keywords": [],
@@ -35,7 +34,6 @@
     "open": "^10.2.0",
     "p-limit": "^7.3.0",
     "prisma": "^6.16.2",
-    "puppeteer": "^24.39.1",
     "puppeteer-core": "^25.2.1",
     "xlsx": "^0.18.5"
   }
