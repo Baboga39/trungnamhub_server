@@ -1,7 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const puppeteer = require("puppeteer");
+const chromium = require("@sparticuz/chromium");
+const puppeteer = require("puppeteer-core");
 
 const retry = async (fn, times = 3, delay = 500) => {
   let lastError;
@@ -32,34 +33,21 @@ const fillRows = (rows, maxRows) => {
   return result;
 };
 
-let browser;
+let browserInstance = null;
 
 const getBrowser = async () => {
-  // Nếu browser bị crash/disconnect, reset để tạo mới
-  if (browser) {
-    try {
-      await browser.version();
-      return browser;
-    } catch (_) {
-      browser = null;
-    }
-  }
+  if (browserInstance) return browserInstance;
 
-  console.log(`🚀 Launching Puppeteer (platform: ${os.platform()})...`);
+  const executablePath = await chromium.executablePath();
 
-  browser = await puppeteer.launch({
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-accelerated-2d-canvas",
-      "--no-zygote",
-      "--disable-gpu",
-    ],
+  browserInstance = await puppeteer.launch({
+    args: chromium.args,
+    defaultViewport: chromium.defaultViewport,
+    executablePath,
+    headless: chromium.headless,
   });
 
-  return browser;
+  return browserInstance;
 };
 
 const getAttendanceText = (status) => {
