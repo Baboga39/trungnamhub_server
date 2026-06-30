@@ -1,6 +1,8 @@
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 const puppeteer = require("puppeteer");
+
 const retry = async (fn, times = 3, delay = 500) => {
   let lastError;
 
@@ -29,13 +31,13 @@ const fillRows = (rows, maxRows) => {
   while (result.length < maxRows) result.push(null);
   return result;
 };
+
 let browser;
 
 const getBrowser = async () => {
-  // Nếu browser bị crash/disconnect, đặt lại để khởi động mới
+  // Nếu browser bị crash/disconnect, reset để tạo mới
   if (browser) {
     try {
-      // Kiểm tra browser còn sống không
       await browser.version();
       return browser;
     } catch (_) {
@@ -43,33 +45,20 @@ const getBrowser = async () => {
     }
   }
 
-  const launchOptions = {
+  console.log(`🚀 Launching Puppeteer (platform: ${os.platform()})...`);
+
+  browser = await puppeteer.launch({
     headless: true,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-accelerated-2d-canvas",
-      "--no-first-run",
       "--no-zygote",
-      "--single-process",
       "--disable-gpu",
     ],
-  };
+  });
 
-  // Trên Render (Linux), thử tìm Chrome đã được cài bởi puppeteer browsers install
-  const os = require("os");
-  if (os.platform() !== "win32" && os.platform() !== "darwin") {
-    try {
-      // puppeteer tự động tìm Chrome đã cài, không cần set executablePath
-      // nhưng nếu PUPPETEER_EXECUTABLE_PATH được set trong env thì dùng nó
-      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-        launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-      }
-    } catch (_) {}
-  }
-
-  browser = await puppeteer.launch(launchOptions);
   return browser;
 };
 
