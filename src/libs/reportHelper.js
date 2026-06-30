@@ -32,12 +32,44 @@ const fillRows = (rows, maxRows) => {
 let browser;
 
 const getBrowser = async () => {
-  if (!browser) {
-    browser = await puppeteer.launch({
-      headless: "new",
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
+  // Nếu browser bị crash/disconnect, đặt lại để khởi động mới
+  if (browser) {
+    try {
+      // Kiểm tra browser còn sống không
+      await browser.version();
+      return browser;
+    } catch (_) {
+      browser = null;
+    }
   }
+
+  const launchOptions = {
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-accelerated-2d-canvas",
+      "--no-first-run",
+      "--no-zygote",
+      "--single-process",
+      "--disable-gpu",
+    ],
+  };
+
+  // Trên Render (Linux), thử tìm Chrome đã được cài bởi puppeteer browsers install
+  const os = require("os");
+  if (os.platform() !== "win32" && os.platform() !== "darwin") {
+    try {
+      // puppeteer tự động tìm Chrome đã cài, không cần set executablePath
+      // nhưng nếu PUPPETEER_EXECUTABLE_PATH được set trong env thì dùng nó
+      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+      }
+    } catch (_) {}
+  }
+
+  browser = await puppeteer.launch(launchOptions);
   return browser;
 };
 
