@@ -1,4 +1,21 @@
+const archiver = require("archiver");
 const service = require("../../services");
+
+const createZipBuffer = async (files) => {
+  return new Promise((resolve, reject) => {
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    const buffers = [];
+
+    archive.on("data", (data) => buffers.push(data));
+    archive.on("end", () => resolve(Buffer.concat(buffers)));
+    archive.on("error", (err) => reject(err));
+
+    for (const file of files) {
+      archive.append(file.buffer, { name: file.filename });
+    }
+    archive.finalize();
+  });
+};
 
 module.exports = {
   id: "ALL_MEMBER_QUARTERLY_REPORT",
@@ -15,10 +32,25 @@ module.exports = {
   ],
   handler: async (parameters, res) => {
     const { year, quarter, email } = parameters;
-    if (!year || !quarter || !email || (Array.isArray(email) && email.length === 0)) {
+    if (!year || !quarter) {
         return res.status(400).json({ message: "Thiếu thông số báo cáo hàng loạt" });
     }
-    await service.reportService.exportBatchAllPDF(Number(year), Number(quarter), email);
-    return res.ok(null, "Đã xuất báo cáo hàng loạt thành công!");
+
+    const targetEmail = (email && (typeof email === "string" ? email.trim() !== "" : email.length > 0)) ? email : null;
+
+    const files = await service.reportService.exportBatchAllPDF(Number(year), Number(quarter), targetEmail);
+
+    if (!files || files.length === 0) {
+      return res.status(404).json({ message: "Không tìm thấy đoàn sinh hoạt động nào để xuất báo cáo" });
+    }
+
+    const zipBuffer = await createZipBuffer(files);
+
+    const responseFiles = [{
+      filename: `BaoCaoDoanSinh_Q${quarter}_${year}.zip`,
+      content: Buffer.from(zipBuffer).toString("base64")
+    }];
+
+    return res.ok({ files: responseFiles }, targetEmail ? "Đã xuất báo cáo hàng loạt và gửi email thành công!" : "Đã xuất báo cáo hàng loạt thành công!");
   }
 };

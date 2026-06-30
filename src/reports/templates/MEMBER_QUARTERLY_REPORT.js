@@ -16,10 +16,20 @@ module.exports = {
   ],
   handler: async (parameters, res) => {
     const { memberId, year, quarter, email } = parameters;
-    if (!memberId || !year || !quarter || !email || (Array.isArray(email) && email.length === 0)) {
+    if (!memberId || !year || !quarter) {
         return res.status(400).json({ message: "Thiếu thông số báo cáo cá nhân" });
     }
-    await service.reportService.exportBatchPDF([Number(memberId)], Number(year), Number(quarter), email);
-    return res.ok(null, "Đã xuất và gửi báo cáo thành công!");
+    
+    // Nếu có email trống hoặc mảng rỗng thì coi như không có email
+    const targetEmail = (email && (typeof email === "string" ? email.trim() !== "" : email.length > 0)) ? email : null;
+
+    const files = await service.reportService.exportBatchPDF([Number(memberId)], Number(year), Number(quarter), targetEmail);
+    
+    const responseFiles = files.map(f => ({
+      filename: f.filename,
+      content: Buffer.from(f.buffer).toString("base64")
+    }));
+
+    return res.ok({ files: responseFiles }, targetEmail ? "Đã xuất và gửi báo cáo qua email thành công!" : "Đã xuất báo cáo thành công!");
   }
 };

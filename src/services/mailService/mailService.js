@@ -44,7 +44,7 @@ const sendDinnerInvitationMail = async () => {
 
     const mailOptions = {
       from: `"Dinner Invitation 💖" <${process.env.GMAIL_USER}>`,
-      to: "phannhung05121999@gmail.com", // 🎯 fix cứng luôn
+      to: "ngochai06122002@gmail.com", // 🎯 fix cứng luôn
       subject: "🍽️ A Special Dinner Invitation Just for You",
       html: htmlContent,
     };

@@ -250,9 +250,23 @@ const generateMemberReportPDF = async (memberId, year, quarter, email) => {
   const rank = getRank(score.total);
   const rankColor = getRankColor(rank);
 
-  const user = await prisma.user.findUnique({
-    where: { email },
-  });
+  let user = null;
+  let emailString = null;
+  if (email) {
+    if (Array.isArray(email)) {
+      if (email.length > 0) {
+        emailString = email.join(", ");
+        user = await prisma.user.findUnique({
+          where: { email: email[0] },
+        });
+      }
+    } else if (typeof email === "string" && email.trim() !== "") {
+      emailString = email;
+      user = await prisma.user.findUnique({
+        where: { email },
+      });
+    }
+  }
 
   const html = buildHTML(
     data,
@@ -267,26 +281,30 @@ const generateMemberReportPDF = async (memberId, year, quarter, email) => {
 
   const pdfBuffer = await generatePDFBuffer(html);
 
-
-  sendReportMail({
-    meta: {
-      toEmail: email,
-      tenTruongDoan: user?.name || "Trung Nam Hub",
-      tieuDeBaoCao: `Báo cáo quý ${quarter} của ${data.name}`,
-      tenNguoiGui: "Hệ thống Trung Nam",
-      loaiBaoCao: "Quý",
-    },
-    attachments: [
-      {
-        filename: `${data.name}_Q${quarter}_${year}.pdf`,
-        content: pdfBuffer,
+  if (emailString) {
+    sendReportMail({
+      meta: {
+        toEmail: emailString,
+        tenTruongDoan: user?.name || "Trung Nam Hub",
+        tieuDeBaoCao: `Báo cáo quý ${quarter} của ${data.name}`,
+        tenNguoiGui: "Hệ thống Trung Nam",
+        loaiBaoCao: "Quý",
       },
-    ],
-  }).catch((err) => {
-    console.error("❌ Send Report Mail Promise Error: ", err);
-  });
+      attachments: [
+        {
+          filename: `${data.name}_Q${quarter}_${year}.pdf`,
+          content: pdfBuffer,
+        },
+      ],
+    }).catch((err) => {
+      console.error("❌ Send Report Mail Promise Error: ", err);
+    });
+  }
 
-  return true;
+  return {
+    filename: `${data.name}_Q${quarter}_${year}.pdf`,
+    buffer: pdfBuffer,
+  };
 };
 
 
