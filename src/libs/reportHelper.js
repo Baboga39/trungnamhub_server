@@ -1,7 +1,5 @@
 const fs = require("fs");
 const path = require("path");
-const os = require("os");
-const puppeteer = require("puppeteer");
 
 const retry = async (fn, times = 3, delay = 500) => {
   let lastError;
@@ -32,31 +30,6 @@ const fillRows = (rows, maxRows) => {
   return result;
 };
 
-let browserInstance = null;
-
-const getBrowser = async () => {
-  if (browserInstance) return browserInstance;
-
-  const launchOptions = {
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-    ],
-    headless: true,
-  };
-
-  // Khi deploy trên Render: dùng Chrome hệ thống được cài qua apt-get
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-    launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-  }
-
-  browserInstance = await puppeteer.launch(launchOptions);
-
-  return browserInstance;
-};
-
 const getAttendanceText = (status) => {
   switch (status) {
     case "present":
@@ -71,16 +44,17 @@ const getAttendanceText = (status) => {
       return "";
   }
 };
+
 const getAttendanceColor = (status) => {
   switch (status) {
     case "present":
-      return "#16a34a"; // xanh
+      return "#16a34a";
     case "absent":
-      return "#dc2626"; // đỏ
+      return "#dc2626";
     case "late":
-      return "#f59e0b"; // vàng
+      return "#f59e0b";
     case "excused":
-      return "#2563eb"; // xanh dương
+      return "#2563eb";
     default:
       return "#000";
   }
@@ -90,7 +64,6 @@ module.exports = {
   retry,
   ensureDir,
   fillRows,
-  getBrowser,
   getAttendanceText,
   getAttendanceColor,
-};
+};
