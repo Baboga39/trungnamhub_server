@@ -37,15 +37,22 @@ let browserInstance = null;
 const getBrowser = async () => {
   if (browserInstance) return browserInstance;
 
-  browserInstance = await puppeteer.launch({
+  const launchOptions = {
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
-      "--disable-gpu"
+      "--disable-gpu",
     ],
     headless: true,
-  });
+  };
+
+  // Khi deploy trên Render: dùng Chrome hệ thống được cài qua apt-get
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+
+  browserInstance = await puppeteer.launch(launchOptions);
 
   return browserInstance;
 };
