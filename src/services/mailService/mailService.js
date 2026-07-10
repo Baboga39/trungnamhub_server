@@ -75,6 +75,8 @@ const sendReportMail = async ({ meta, attachments = [] }) => {
     service: "gmail",
      logger: true,
   debug: true,
+   port: 465,
+  secure: true,
     auth: {
       type: "OAuth2",
       user: process.env.GMAIL_USER,
