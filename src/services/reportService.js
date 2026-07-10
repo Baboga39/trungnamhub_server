@@ -6,9 +6,20 @@ const { buildActivityMap } = require("./gradeService");
 const { sendReportMail } = require("./mailService/mailService");
 const pLimit = require("p-limit").default;
 const retry = require("../libs/reportHelper").retry;
-const ensureDir = require("../libs/reportHelper").ensureDir;
-const getBrowser = require("../libs/reportHelper").getBrowser;
-const buildHTML = require("./mailService/templates/buildHTML");
+const buildPDFDefinition = require("./mailService/templates/buildPDF");
+const PdfPrinter = require("pdfmake");
+const path = require("path");
+
+// Font Roboto đi kèm pdfmake
+const fonts = {
+  Roboto: {
+    normal: path.join(require.resolve("pdfmake"), "../../fonts/Roboto/Roboto-Regular.ttf"),
+    bold: path.join(require.resolve("pdfmake"), "../../fonts/Roboto/Roboto-Medium.ttf"),
+    italics: path.join(require.resolve("pdfmake"), "../../fonts/Roboto/Roboto-Italic.ttf"),
+    bolditalics: path.join(require.resolve("pdfmake"), "../../fonts/Roboto/Roboto-MediumItalic.ttf"),
+  },
+};
+const printer = new PdfPrinter(fonts);
 
 const limit = pLimit(6);
 
@@ -41,24 +52,15 @@ const exportBatchAllPDF = async (year, quarter, email) => {
 };
 
 
-const generatePDFBuffer = async (html) => {
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-
-  await page.setContent(html, { waitUntil: "domcontentloaded" });
-
-  // await page.waitForSelector("#chart");
-
-  await new Promise(resolve => setTimeout(resolve, 1000));
-
-
-  const buffer = await page.pdf({
-    format: "A4",
-    printBackground: true,
+const generatePDFBuffer = async (docDefinition) => {
+  return new Promise((resolve, reject) => {
+    const doc = printer.createPdfKitDocument(docDefinition);
+    const chunks = [];
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+    doc.end();
   });
-
-  await page.close();
-  return buffer;
 };
 
 const getRankColor = (rank) => {
@@ -265,7 +267,7 @@ const generateMemberReportPDF = async (memberId, year, quarter, email) => {
     }
   }
 
-  const html = buildHTML(
+  const docDefinition = await buildPDFDefinition(
     data,
     score,
     attendance,
@@ -276,7 +278,7 @@ const generateMemberReportPDF = async (memberId, year, quarter, email) => {
     rankColor,
   );
 
-  const pdfBuffer = await generatePDFBuffer(html);
+  const pdfBuffer = await generatePDFBuffer(docDefinition);
 
   if (emailString) {
     sendReportMail({
