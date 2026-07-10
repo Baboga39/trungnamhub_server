@@ -7,19 +7,23 @@ const { sendReportMail } = require("./mailService/mailService");
 const pLimit = require("p-limit").default;
 const retry = require("../libs/reportHelper").retry;
 const buildPDFDefinition = require("./mailService/templates/buildPDF");
-const PdfPrinter = require("pdfmake");
+const pdfmake = require("pdfmake");
 const path = require("path");
 
-// Font Roboto đi kèm pdfmake
-const fonts = {
+// Cấu hình font Roboto đi kèm pdfmake
+const fontsDir = path.join(require.resolve("pdfmake"), "../../fonts/Roboto");
+pdfmake.setFonts({
   Roboto: {
-    normal: path.join(require.resolve("pdfmake"), "../../fonts/Roboto/Roboto-Regular.ttf"),
-    bold: path.join(require.resolve("pdfmake"), "../../fonts/Roboto/Roboto-Medium.ttf"),
-    italics: path.join(require.resolve("pdfmake"), "../../fonts/Roboto/Roboto-Italic.ttf"),
-    bolditalics: path.join(require.resolve("pdfmake"), "../../fonts/Roboto/Roboto-MediumItalic.ttf"),
+    normal: path.join(fontsDir, "Roboto-Regular.ttf"),
+    bold: path.join(fontsDir, "Roboto-Medium.ttf"),
+    italics: path.join(fontsDir, "Roboto-Italic.ttf"),
+    bolditalics: path.join(fontsDir, "Roboto-MediumItalic.ttf"),
   },
-};
-const printer = new PdfPrinter(fonts);
+});
+// Cho phép đọc font local
+pdfmake.setLocalAccessPolicy(() => true);
+// Không cho phép tải tài nguyên URL bên ngoài trong PDF
+pdfmake.setUrlAccessPolicy(() => false);
 
 const limit = pLimit(6);
 
@@ -53,14 +57,7 @@ const exportBatchAllPDF = async (year, quarter, email) => {
 
 
 const generatePDFBuffer = async (docDefinition) => {
-  return new Promise((resolve, reject) => {
-    const doc = printer.createPdfKitDocument(docDefinition);
-    const chunks = [];
-    doc.on("data", (chunk) => chunks.push(chunk));
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
-    doc.on("error", reject);
-    doc.end();
-  });
+  return pdfmake.createPdf(docDefinition).getBuffer();
 };
 
 const getRankColor = (rank) => {
