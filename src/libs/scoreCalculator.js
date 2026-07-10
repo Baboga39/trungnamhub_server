@@ -11,7 +11,6 @@ function calculateTotalScoreDynamic(formData, categories) {
   };
 
   for (const cat of categories) {
-    // ❌ bỏ thưởng / phạt khỏi weighted
     if (cat.name === "Thưởng" || cat.name === "Phạt") continue;
 
     const key = nameMap[cat.name] || cat.name;

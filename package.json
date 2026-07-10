@@ -14,7 +14,6 @@
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^6.16.2",
-    "@sparticuz/chromium": "^149.0.0",
     "archiver": "^8.0.0",
     "axios": "^1.13.6",
     "bcrypt": "^6.0.0",
@@ -34,7 +33,7 @@
     "open": "^10.2.0",
     "p-limit": "^7.3.0",
     "prisma": "^6.16.2",
-    "puppeteer-core": "^25.2.1",
+    "puppeteer": "^25.2.1",
     "xlsx": "^0.18.5"
   }
 }

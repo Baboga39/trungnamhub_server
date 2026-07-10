@@ -1,8 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const chromium = require("@sparticuz/chromium");
-const puppeteer = require("puppeteer-core");
+const puppeteer = require("puppeteer");
 
 const retry = async (fn, times = 3, delay = 500) => {
   let lastError;
@@ -38,13 +37,14 @@ let browserInstance = null;
 const getBrowser = async () => {
   if (browserInstance) return browserInstance;
 
-  const executablePath = await chromium.executablePath();
-
   browserInstance = await puppeteer.launch({
-    args: chromium.args,
-    defaultViewport: chromium.defaultViewport,
-    executablePath,
-    headless: chromium.headless,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu"
+    ],
+    headless: true,
   });
 
   return browserInstance;
