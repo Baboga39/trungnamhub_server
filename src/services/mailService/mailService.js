@@ -21,6 +21,7 @@ const sendDinnerInvitationMail = async () => {
 
   const transporter = nodemailer.createTransport({
     service: "gmail",
+
     auth: {
       type: "OAuth2",
       user: process.env.GMAIL_USER,
@@ -72,6 +73,8 @@ const sendReportMail = async ({ meta, attachments = [] }) => {
 
   const transporter = nodemailer.createTransport({
     service: "gmail",
+     logger: true,
+  debug: true,
     auth: {
       type: "OAuth2",
       user: process.env.GMAIL_USER,
