@@ -17,17 +17,20 @@ function buildBranchFilter(user) {
 }
 async function upsertMember(data, user) {
   const { id, ...rest } = data;
+  console.log(rest);
   return prisma.member.upsert({
     where: { id: id || 0 },
     update: {
       ...rest,
       birthDate: parseDate(rest.birthDate),
+      startDate: parseDate(rest.startDate),
     },
     create: {
       ...rest,
       createdById: user.userId,
       birthDate: parseDate(rest.birthDate),
       branch: rest.branch || user.branch,
+      startDate: parseDate(rest.startDate),
     },
   });
 }
@@ -43,9 +46,13 @@ async function getMembers(user) {
       parish: true,
       church: true,
       startYear: true,
+      startDate: true,
       branch: true,
       active: true,
       contact: true,
+      fatherName: true,
+      motherName: true,
+      address: true,
       user: { select: { id: true, name: true, email: true } },
     },
   });

@@ -22,6 +22,13 @@ const memberSchema = Joi.object({
   startYear: Joi.number().integer().min(1900).max(new Date().getFullYear())
     .optional()
     .allow(null),
+  startDate: Joi.string()
+    .pattern(/^\d{1,2}\/\d{1,2}\/\d{4}$/) // dd/mm/yyyy
+    .optional()
+    .allow(null, '')
+    .messages({
+      "string.pattern.base": `"startDate" must be in format dd/mm/yyyy`
+    }),
 
   fatherName: Joi.string().max(100).optional().allow(null, ''),
   motherName: Joi.string().max(100).optional().allow(null, ''),

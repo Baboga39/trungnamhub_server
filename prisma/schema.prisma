@@ -66,6 +66,7 @@ model Member {
   parish     String?
   church     String?
   startYear  Int?
+  startDate DateTime?
   fatherName String?
   motherName String?
   address    String?
