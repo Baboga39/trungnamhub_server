@@ -137,7 +137,6 @@ async function getRiskMembers() {
       averageGrade = calculateTotalScoreDynamic(formData, categories);
     }
 
-    // 3️⃣ Điều kiện đoàn sinh nguy cơ
     if (absentCount >= 3 && averageGrade !== null && averageGrade < 6.5) {
       const riskScore = Math.round(
         absentCount * 15 + (10 - averageGrade) * 10

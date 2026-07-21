@@ -315,7 +315,7 @@ async function getTop3MembersByScoreThisYear() {
 
     const baseScore = calculateTotalScoreDynamic(data.formData, categories);
 
-    const totalScore = baseScore + activity.score;
+    const totalScore = Number((baseScore + activity.score).toFixed(1));
     return {
       memberId,
       totalScore,
@@ -398,8 +398,7 @@ async function getRankingThisYear() {
       categories,
     );
 
-    const totalScore = baseScore + activity.score;
-
+const totalScore = Number((baseScore + activity.score).toFixed(1));
     return {
       memberId: m.memberId,
       memberName: m.member.name,
