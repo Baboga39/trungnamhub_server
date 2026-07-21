@@ -48,8 +48,8 @@ async function remove(req, res, next) {
 
 async function changeStatus(req, res, next) {
   try {
-    const { memberId, dateChange, note } = req.body;
-    const member = await services.memberService.changeMemberStatus(memberId, dateChange, note);
+    const { memberId, active, promotionDate, note } = req.body;
+    const member = await services.memberService.changeMemberStatus(memberId, active, promotionDate, note);
     return res.ok(member, "Member status changed successfully");
   } catch (err) {
     next(err);
@@ -67,7 +67,7 @@ async function getMemberStatusHistory(req, res, next) {
 
 async function deleteHistoryById(req, res, next) {
   try {
-    await services.memberService.deleteHistoryById(req.params.id);
+    await services.memberService.deleteHistory(req.body.ids);
     return res.ok(null, "History deleted successfully");
   } catch (err) {
     next(err);

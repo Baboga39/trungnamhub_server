@@ -15,13 +15,17 @@ const memberSchema = Joi.object({
     }),
 
   gender: Joi.string().valid("Nam", "Nữ", "Khác").optional().allow(null, ''),
+  promotionDate: Joi.string()
+    .pattern(/^\d{1,2}\/\d{1,2}\/\d{4}$/) // dd/mm/yyyy
+    .optional()
+    .allow(null, '')
+    .messages({
+      "string.pattern.base": `"promotionDate" must be in format dd/mm/yyyy`
+    }),
 
   parish: Joi.string().max(100).optional().allow(null, ''),   // Xã đạo
   church: Joi.string().max(100).optional().allow(null, ''),   // Họ đạo
 
-  startYear: Joi.number().integer().min(1900).max(new Date().getFullYear())
-    .optional()
-    .allow(null),
   startDate: Joi.string()
     .pattern(/^\d{1,2}\/\d{1,2}\/\d{4}$/) // dd/mm/yyyy
     .optional()
