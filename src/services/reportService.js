@@ -9,6 +9,8 @@ const retry = require("../libs/reportHelper").retry;
 const buildPDFDefinition = require("./mailService/templates/buildPDF");
 const pdfmake = require("pdfmake");
 const path = require("path");
+const archiver = require("archiver");
+const { PassThrough } = require("stream");
 
 // Cấu hình font Roboto đi kèm pdfmake
 const fontsDir = path.join(require.resolve("pdfmake"), "../../fonts/Roboto");
@@ -27,17 +29,46 @@ pdfmake.setUrlAccessPolicy(() => false);
 
 const limit = pLimit(6);
 
+const createZip = (files) => {
+  return new Promise((resolve, reject) => {
+    const archive = archiver("zip", {
+      zlib: { level: 9 },
+    });
+
+    const stream = new PassThrough();
+    const chunks = [];
+
+    stream.on("data", (chunk) => chunks.push(chunk));
+
+    stream.on("end", () => {
+      resolve(Buffer.concat(chunks));
+    });
+
+    stream.on("error", reject);
+    archive.on("error", reject);
+
+    archive.pipe(stream);
+
+    for (const file of files) {
+      archive.append(file.buffer, {
+        name: file.filename,
+      });
+    }
+
+    archive.finalize();
+  });
+};
 
 const exportBatchPDF = async (memberIds, year, quarter, email) => {
-  memberIds.forEach((id) => {
-    limit(() =>
-      retry(() => generateMemberReportPDF(id, year, quarter, email), 3)
-    ).catch((err) => {
-      console.error("Generate PDF Error:", err);
-    });
-  });
+  const results = await Promise.all(
+    memberIds.map((id) =>
+      limit(() =>
+        retry(() => generateMemberReportPDF(id, year, quarter, email), 3)
+      )
+    )
+  );
 
-  return true;
+  return results;
 };
 
 const exportBatchAllPDF = async (year, quarter, email) => {
@@ -45,14 +76,28 @@ const exportBatchAllPDF = async (year, quarter, email) => {
     where: { active: true },
     select: { id: true },
   });
-
-  members.forEach((member) => {
+const reports = await Promise.all(
+  members.map((member) =>
     limit(() =>
-      retry(() => generateMemberReportPDF(member.id, year, quarter, email), 3)
-    ).catch(console.error);
-  });
+      retry(
+        () =>
+          generateMemberReportPDF(
+            member.id,
+            year,
+            quarter,
+            null
+          ),
+        3
+      )
+    )
+  )
+);
 
-  return true;
+const zipBuffer = await createZip(reports);
+return {
+  filename: `All_Members_Q${quarter}_${year}.zip`,
+  buffer: zipBuffer,
+};
 };
 
 
@@ -277,27 +322,30 @@ const generateMemberReportPDF = async (memberId, year, quarter, email) => {
 
   const pdfBuffer = await generatePDFBuffer(docDefinition);
 
-  if (emailString) {
-    sendReportMail({
-      meta: {
-        toEmail: emailString,
-        tenTruongDoan: user?.name || "Trung Nam Hub",
-        tieuDeBaoCao: `Báo cáo quý ${quarter} của ${data.name}`,
-        tenNguoiGui: "Hệ thống Trung Nam",
-        loaiBaoCao: "Quý",
-      },
-      attachments: [
-        {
-          filename: `${data.name}_Q${quarter}_${year}.pdf`,
-          content: pdfBuffer,
-        },
-      ],
-    }).catch((err) => {
-      console.error("❌ Send Report Mail Promise Error: ", err);
-    });
-  }
+  // if (emailString) {
+  //   sendReportMail({
+  //     meta: {
+  //       toEmail: emailString,
+  //       tenTruongDoan: user?.name || "Trung Nam Hub",
+  //       tieuDeBaoCao: `Báo cáo quý ${quarter} của ${data.name}`,
+  //       tenNguoiGui: "Hệ thống Trung Nam",
+  //       loaiBaoCao: "Quý",
+  //     },
+  //     attachments: [
+  //       {
+  //         filename: `${data.name}_Q${quarter}_${year}.pdf`,
+  //         content: pdfBuffer,
+  //       },
+  //     ],
+  //   }).catch((err) => {
+  //     console.error("❌ Send Report Mail Promise Error: ", err);
+  //   });
+  // }
 
-  return true
+ return {
+  filename: `${data.name}_Q${quarter}_${year}.pdf`,
+  buffer: pdfBuffer,
+};
 };
 
 

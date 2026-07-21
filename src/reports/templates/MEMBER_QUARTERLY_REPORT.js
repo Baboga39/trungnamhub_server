@@ -9,8 +9,17 @@ module.exports = {
   color: "bg-blue-500",
 
   inputs: [
-    { key: "memberId", label: "Gõ tên hoặc chọn Đoàn sinh", type: "select-member" },
-    { key: "year", label: "Năm học", type: "number", defaultValue: new Date().getFullYear() },
+    {
+      key: "memberId",
+      label: "Gõ tên hoặc chọn Đoàn sinh",
+      type: "select-member",
+    },
+    {
+      key: "year",
+      label: "Năm học",
+      type: "number",
+      defaultValue: new Date().getFullYear(),
+    },
     {
       key: "quarter",
       label: "Quý",
@@ -36,24 +45,33 @@ module.exports = {
 
     const targetEmail =
       email &&
-      (typeof email === "string"
-        ? email.trim() !== ""
-        : email.length > 0)
+      (typeof email === "string" ? email.trim() !== "" : email.length > 0)
         ? email
         : null;
 
-    await service.reportService.exportBatchPDF(
+    const reports = await service.reportService.exportBatchPDF(
       [Number(memberId)],
       Number(year),
       Number(quarter),
-      targetEmail
+      targetEmail,
     );
 
-    return res.ok(
-      null,
-      targetEmail
-        ? "Đã gửi báo cáo qua email thành công!"
-        : "Đã tạo báo cáo thành công!"
-    );
+    const report = reports[0];
+
+ const filename = encodeURIComponent(report.filename);
+
+res.setHeader("Content-Type", "application/pdf");
+
+res.setHeader(
+  "Content-Disposition",
+  `attachment; filename*=UTF-8''${filename}`
+);
+
+res.setHeader(
+  "Access-Control-Expose-Headers",
+  "Content-Disposition"
+);
+
+return res.send(report.buffer);
   },
 };

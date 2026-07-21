@@ -14,7 +14,7 @@
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^6.16.2",
-    "archiver": "^8.0.0",
+    "archiver": "^6.0.2",
     "axios": "^1.13.6",
     "bcrypt": "^6.0.0",
     "chartjs-node-canvas": "^5.0.0",

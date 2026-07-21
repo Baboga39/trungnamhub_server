@@ -18,35 +18,230 @@ const attendanceColorMap = { present: "#16a34a", absent: "#dc2626", late: "#f59e
 const buildPDFDefinition = async (member, score, attendance, activity, year, quarter, rank, rankColor) => {
   const chartBase64 = `data:image/png;base64,${(await buildChartImage(score.rows)).toString("base64")}`;
 
+  const headerFillColor = "#1e40af";
+  const headerTextColor = "white";
+  const subHeaderColor = "#dbeafe";
+  const titleColor = "#0f172a";
+  const subtitleColor = "#475569";
+  const accentColor = "#2563eb";
+
   const scoreTableBody = [
-    [{ text: "Mon", bold: true, fontSize: 10, fillColor: "#f1f5f9", alignment: "center" }, { text: "Diem", bold: true, fontSize: 10, fillColor: "#f1f5f9", alignment: "center" }, { text: "He so", bold: true, fontSize: 10, fillColor: "#f1f5f9", alignment: "center" }, { text: "Quy doi", bold: true, fontSize: 10, fillColor: "#f1f5f9", alignment: "center" }],
-    ...score.rows.map((r) => [{ text: r?.name || "", fontSize: 10, alignment: "center" }, { text: r?.score != null ? String(r.score) : "", fontSize: 10, alignment: "center" }, { text: r?.weight != null ? String(r.weight) : "", fontSize: 10, alignment: "center" }, { text: r ? r.weighted.toFixed(1) : "", fontSize: 10, alignment: "center" }]),
+    [
+      { text: "Môn", bold: true, fontSize: 11, fillColor: headerFillColor, color: headerTextColor, alignment: "center", padding: [8, 4] },
+      { text: "Điểm", bold: true, fontSize: 11, fillColor: headerFillColor, color: headerTextColor, alignment: "center", padding: [8, 4] },
+      { text: "Hệ số", bold: true, fontSize: 11, fillColor: headerFillColor, color: headerTextColor, alignment: "center", padding: [8, 4] },
+      { text: "Quy đổi", bold: true, fontSize: 11, fillColor: headerFillColor, color: headerTextColor, alignment: "center", padding: [8, 4] },
+    ],
+    ...score.rows.map((r, idx) => [
+      { text: r?.name || "", fontSize: 10, alignment: "center", fillColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc", padding: [6, 4] },
+      { text: r?.score != null ? String(r.score) : "", fontSize: 10, alignment: "center", fillColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc", padding: [6, 4] },
+      { text: r?.weight != null ? String(r.weight) : "", fontSize: 10, alignment: "center", fillColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc", padding: [6, 4] },
+      { text: r ? r.weighted.toFixed(1) : "", fontSize: 10, alignment: "center", fillColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc", padding: [6, 4], bold: true, color: accentColor },
+    ]),
   ];
 
   const attendanceTableBody = [
-    [{ text: "Ngay", bold: true, fontSize: 10, fillColor: "#f1f5f9", alignment: "center" }, { text: "Trang thai", bold: true, fontSize: 10, fillColor: "#f1f5f9", alignment: "center" }, { text: "Ghi chu", bold: true, fontSize: 10, fillColor: "#f1f5f9", alignment: "center" }],
-    ...attendance.list.map((a) => [{ text: a ? formatDate(a.date) : "", fontSize: 9, alignment: "center" }, { text: a ? getAttendanceText(a.status) : "", fontSize: 9, alignment: "center", color: a ? (attendanceColorMap[a.status] || "#000") : "#000" }, { text: a?.note || "", fontSize: 9, alignment: "center" }]),
+    [
+      { text: "Ngày", bold: true, fontSize: 11, fillColor: headerFillColor, color: headerTextColor, alignment: "center", padding: [8, 4] },
+      { text: "Trạng thái", bold: true, fontSize: 11, fillColor: headerFillColor, color: headerTextColor, alignment: "center", padding: [8, 4] },
+      { text: "Ghi chú", bold: true, fontSize: 11, fillColor: headerFillColor, color: headerTextColor, alignment: "center", padding: [8, 4] },
+    ],
+    ...attendance.list.map((a, idx) => [
+      { text: a ? formatDate(a.date) : "", fontSize: 10, alignment: "center", fillColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc", padding: [6, 4] },
+      { text: a ? getAttendanceText(a.status) : "", fontSize: 10, alignment: "center", fillColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc", padding: [6, 4], bold: true, color: a ? (attendanceColorMap[a.status] || "#000") : "#000" },
+      { text: a?.note || "", fontSize: 9, alignment: "center", fillColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc", padding: [6, 4], color: "#64748b" },
+    ]),
   ];
 
   const activityTableBody = [
-    [{ text: "Ten hoat dong", bold: true, fontSize: 10, fillColor: "#f1f5f9", alignment: "center" }, { text: "Ngay", bold: true, fontSize: 10, fillColor: "#f1f5f9", alignment: "center" }, { text: "Trang thai", bold: true, fontSize: 10, fillColor: "#f1f5f9", alignment: "center" }],
-    ...activity.list.map((a) => [{ text: a?.activity?.name || "", fontSize: 10, alignment: "center" }, { text: a ? formatDate(a.activity.date) : "", fontSize: 10, alignment: "center" }, { text: a?.status || "", fontSize: 10, alignment: "center" }]),
+    [
+      { text: "Tên hoạt động", bold: true, fontSize: 11, fillColor: headerFillColor, color: headerTextColor, alignment: "center", padding: [8, 4] },
+      { text: "Ngày", bold: true, fontSize: 11, fillColor: headerFillColor, color: headerTextColor, alignment: "center", padding: [8, 4] },
+      { text: "Trạng thái", bold: true, fontSize: 11, fillColor: headerFillColor, color: headerTextColor, alignment: "center", padding: [8, 4] },
+    ],
+    ...activity.list.map((a, idx) => [
+      { text: a?.activity?.name || "", fontSize: 10, alignment: "center", fillColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc", padding: [6, 4] },
+      { text: a ? formatDate(a.activity.date) : "", fontSize: 10, alignment: "center", fillColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc", padding: [6, 4] },
+      { text: a?.status || "", fontSize: 10, alignment: "center", fillColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc", padding: [6, 4], bold: true, color: accentColor },
+    ]),
   ];
 
   return {
     pageSize: "A4",
-    pageMargins: [30, 30, 30, 40],
-    footer: (currentPage) => ({ columns: [{ text: "He thong quan ly doan sinh", fontSize: 9, color: "#64748b" }, { text: "Quarterly Report", fontSize: 9, color: "#64748b", alignment: "center" }, { text: `Trang ${currentPage}  -  ${new Date().toLocaleDateString("vi-VN")}`, fontSize: 9, color: "#64748b", alignment: "right" }], margin: [30, 0, 30, 0] }),
+    pageMargins: [40, 40, 40, 50],
+    footer: (currentPage, pageCount) => ({
+      columns: [
+        { text: "Hệ thống quản lý đoàn sinh", fontSize: 9, color: "#94a3b8" },
+        { text: "Báo cáo học kỳ - Quarterly Report", fontSize: 9, color: "#94a3b8", alignment: "center" },
+        { text: `Trang ${currentPage}/${pageCount}  •  ${new Date().toLocaleDateString("vi-VN")}`, fontSize: 9, color: "#94a3b8", alignment: "right" },
+      ],
+      margin: [40, 10, 40, 10],
+    }),
     content: [
-      { canvas: [{ type: "rect", x: 0, y: 0, w: 535, h: 50, r: 6, color: "#3b82f6" }], margin: [0, 0, 0, -45] },
-      { stack: [{ text: `BAO CAO DOAN SINH - Q${quarter}/${year}`, fontSize: 16, bold: true, color: "white" }, { text: "Member Performance Report - Generated by System", fontSize: 10, color: "#dbeafe" }], margin: [10, 5, 0, 16] },
-      { columns: [{ stack: [{ text: member.name, fontSize: 13, bold: true, color: "#0f172a", margin: [0, 0, 0, 6] }, { text: `Ngay sinh: ${formatDate(member.birthDate)}`, fontSize: 10, color: "#334155", margin: [0, 2, 0, 2] }, { text: `Xa dao: ${member.parish || "-"}`, fontSize: 10, color: "#334155", margin: [0, 2, 0, 2] }, { text: `Nam vao doan: ${member.startYear || "-"}`, fontSize: 10, color: "#334155", margin: [0, 2, 0, 2] }], width: "50%" }, { columns: [{ stack: [{ text: "Diem TB", fontSize: 9, color: "#64748b", alignment: "center" }, { text: score.total.toFixed(2), fontSize: 14, bold: true, alignment: "center" }], width: "*" }, { stack: [{ text: "Xep loai", fontSize: 9, color: "#64748b", alignment: "center" }, { text: rank, fontSize: 13, bold: true, alignment: "center", color: rankColor }], width: "*" }, { stack: [{ text: "Co mat", fontSize: 9, color: "#64748b", alignment: "center" }, { text: `${attendance.summary.present}`, fontSize: 14, bold: true, alignment: "center" }], width: "*" }, { stack: [{ text: "Hoat dong", fontSize: 9, color: "#64748b", alignment: "center" }, { text: `${activity.summary.joined}/${activity.summary.total}`, fontSize: 14, bold: true, alignment: "center" }], width: "*" }], columnGap: 6, width: "50%" }], columnGap: 12, margin: [0, 0, 0, 10] },
-      { text: "Bieu do diem", fontSize: 12, bold: true, color: "#1e293b", margin: [0, 0, 0, 6] },
-      { image: chartBase64, width: 510, margin: [0, 0, 0, 12] },
-      { columns: [{ stack: [{ text: "Chi tiet diem", fontSize: 12, bold: true, color: "#1e293b", margin: [0, 0, 0, 6] }, { table: { headerRows: 1, widths: ["*", "auto", "auto", "auto"], body: scoreTableBody }, layout: "lightHorizontalLines" }], width: "48%" }, { stack: [{ text: "Diem danh", fontSize: 12, bold: true, color: "#1e293b", margin: [0, 0, 0, 6] }, { table: { headerRows: 1, widths: ["auto", "auto", "*"], body: attendanceTableBody }, layout: "lightHorizontalLines" }], width: "52%" }], columnGap: 12, margin: [0, 0, 0, 10] },
-      { stack: [{ text: "Hoat dong", fontSize: 12, bold: true, color: "#1e293b", margin: [0, 0, 0, 6] }, { table: { headerRows: 1, widths: ["*", "auto", "auto"], body: activityTableBody }, layout: "lightHorizontalLines" }], pageBreak: "before" },
+      // Header
+      {
+        columns: [
+          {
+            width: 8,
+            canvas: [
+              { type: "rect", x: 0, y: 0, w: 8, h: 60, fillOpacity: 1, color: accentColor },
+            ],
+          },
+          {
+            stack: [
+              { text: `BÁO CÁO ĐỊA VỊ`, fontSize: 28, bold: true, color: titleColor },
+              { text: `Quý ${quarter}/${year}`, fontSize: 14, color: accentColor, margin: [0, 4, 0, 0] },
+            ],
+            margin: [16, 8, 0, 8],
+          },
+        ],
+        columnGap: 0,
+        margin: [0, 0, 0, 24],
+        fillColor: "#ffffff",
+      },
+
+      // Member Info & Stats
+      {
+        columns: [
+          {
+            stack: [
+              { text: member.name, fontSize: 16, bold: true, color: titleColor, margin: [0, 0, 0, 10] },
+              {
+                stack: [
+                  { text: `📅 Ngày sinh: ${formatDate(member.birthDate)}`, fontSize: 11, color: subtitleColor, margin: [0, 4, 0, 4] },
+                  { text: `📍 Xã đạo: ${member.parish || "-"}`, fontSize: 11, color: subtitleColor, margin: [0, 4, 0, 4] },
+                  { text: `🎓 Năm vào đoàn: ${member.startYear || "-"}`, fontSize: 11, color: subtitleColor, margin: [0, 4, 0, 0] },
+                ],
+              },
+            ],
+            width: "45%",
+          },
+          {
+            columns: [
+              {
+                stack: [
+                  { text: "Điểm TB", fontSize: 9, color: subtitleColor, alignment: "center", bold: true },
+                  { text: score.total.toFixed(2), fontSize: 18, bold: true, color: accentColor, alignment: "center", margin: [0, 4, 0, 0] },
+                ],
+                width: "*",
+                border: [0, 0, 1, 0],
+                borderColor: "#e2e8f0",
+              },
+              {
+                stack: [
+                  { text: "Xếp loại", fontSize: 9, color: subtitleColor, alignment: "center", bold: true },
+                  { text: rank, fontSize: 18, bold: true, color: rankColor, alignment: "center", margin: [0, 4, 0, 0] },
+                ],
+                width: "*",
+                border: [0, 0, 1, 0],
+                borderColor: "#e2e8f0",
+              },
+              {
+                stack: [
+                  { text: "Có mặt", fontSize: 9, color: subtitleColor, alignment: "center", bold: true },
+                  { text: `${attendance.summary.present}`, fontSize: 18, bold: true, color: "#16a34a", alignment: "center", margin: [0, 4, 0, 0] },
+                ],
+                width: "*",
+                border: [0, 0, 1, 0],
+                borderColor: "#e2e8f0",
+              },
+              {
+                stack: [
+                  { text: "Hoạt động", fontSize: 9, color: subtitleColor, alignment: "center", bold: true },
+                  { text: `${activity.summary.joined}/${activity.summary.total}`, fontSize: 18, bold: true, color: "#f59e0b", alignment: "center", margin: [0, 4, 0, 0] },
+                ],
+                width: "*",
+              },
+            ],
+            columnGap: 0,
+            width: "55%",
+          },
+        ],
+        columnGap: 20,
+        margin: [0, 0, 0, 20],
+      },
+
+      // Chart Section
+      { text: "📊 Biểu đồ điểm số chi tiết", fontSize: 13, bold: true, color: titleColor, margin: [0, 0, 0, 10] },
+      { image: chartBase64, width: 510, margin: [0, 0, 0, 20], alignment: "center" },
+
+      // Tables
+      {
+        columns: [
+          {
+            stack: [
+              { text: "📋 Chi tiết điểm", fontSize: 13, bold: true, color: titleColor, margin: [0, 0, 0, 8] },
+              {
+                table: {
+                  headerRows: 1,
+                  widths: ["*", "auto", "auto", "auto"],
+                  body: scoreTableBody,
+                  dontBreakRows: false,
+                },
+                layout: {
+                  hLineWidth: (i) => i === 0 ? 2 : 0.5,
+                  hLineColor: (i) => i === 0 ? headerFillColor : "#e2e8f0",
+                  vLineWidth: () => 0.5,
+                  vLineColor: () => "#e2e8f0",
+                  paddingLeft: () => 4,
+                  paddingRight: () => 4,
+                },
+              },
+            ],
+            width: "48%",
+          },
+          {
+            stack: [
+              { text: "✓ Điểm danh", fontSize: 13, bold: true, color: titleColor, margin: [0, 0, 0, 8] },
+              {
+                table: {
+                  headerRows: 1,
+                  widths: ["auto", "auto", "*"],
+                  body: attendanceTableBody,
+                  dontBreakRows: false,
+                },
+                layout: {
+                  hLineWidth: (i) => i === 0 ? 2 : 0.5,
+                  hLineColor: (i) => i === 0 ? headerFillColor : "#e2e8f0",
+                  vLineWidth: () => 0.5,
+                  vLineColor: () => "#e2e8f0",
+                  paddingLeft: () => 4,
+                  paddingRight: () => 4,
+                },
+              },
+            ],
+            width: "52%",
+          },
+        ],
+        columnGap: 15,
+        margin: [0, 0, 0, 20],
+      },
+
+      // Activities Section
+      {
+        pageBreak: "before",
+        stack: [
+          { text: "🎯 Hoạt động tham gia", fontSize: 13, bold: true, color: titleColor, margin: [0, 0, 0, 8] },
+          {
+            table: {
+              headerRows: 1,
+              widths: ["*", "auto", "auto"],
+              body: activityTableBody,
+              dontBreakRows: false,
+            },
+            layout: {
+              hLineWidth: (i) => i === 0 ? 2 : 0.5,
+              hLineColor: (i) => i === 0 ? headerFillColor : "#e2e8f0",
+              vLineWidth: () => 0.5,
+              vLineColor: () => "#e2e8f0",
+              paddingLeft: () => 4,
+              paddingRight: () => 4,
+            },
+          },
+        ],
+      },
     ],
-    defaultStyle: { font: "Roboto" },
+    defaultStyle: { font: "Roboto", lineHeight: 1.4 },
   };
 };
 

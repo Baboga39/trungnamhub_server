@@ -74,8 +74,6 @@ const sendReportMail = async ({ meta, attachments = [] }) => {
   const transporter = nodemailer.createTransport({
     service: "gmail",
      logger: true,
-  debug: true,
-   port: 465,
   secure: true,
     auth: {
       type: "OAuth2",
