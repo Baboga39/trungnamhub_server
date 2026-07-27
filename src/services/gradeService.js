@@ -306,7 +306,8 @@ async function getTop3MembersByScoreThisYear() {
       Phạt: "penalty",
     };
 
-    const key = nameMap[g.category.name.trim()];
+    const catName = g.category.name.trim();
+    const key = nameMap[catName] || catName;
     item.formData[key] = g.score;
   }
 
@@ -387,18 +388,9 @@ async function getRankingThisYear() {
   const ranking = Object.values(map).map((m) => {
     const activity = activityMap.get(m.memberId) || { score: 0 };
 
-    const baseScore = calculateTotalScoreDynamic(
-      {
-        knowledge: m.scores["Kiến thức"],
-        skill: m.scores["Kỹ năng"],
-        attendance: m.scores["Chuyên cần"],
-        bonus: m.scores["Thưởng"],
-        penalty: m.scores["Phạt"],
-      },
-      categories,
-    );
+    const baseScore = calculateTotalScoreDynamic(m.scores, categories);
 
-const totalScore = Number((baseScore + activity.score).toFixed(1));
+    const totalScore = Number((baseScore + activity.score).toFixed(1));
     return {
       memberId: m.memberId,
       memberName: m.member.name,

@@ -13,6 +13,7 @@ async function main() {
     { name: "Kiến thức", weight: 3 },
     { name: "Kỹ năng", weight: 3 },
     { name: "Chuyên cần", weight: 2 },
+    { name: "Giáo lý Hè", weight: 2 },
     { name: "Thưởng", weight: 1 },
     { name: "Phạt", weight: -1 },
   ];

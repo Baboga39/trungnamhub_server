@@ -14,8 +14,15 @@ function calculateTotalScoreDynamic(formData, categories) {
     if (cat.name === "Thưởng" || cat.name === "Phạt") continue;
 
     const key = nameMap[cat.name] || cat.name;
+    const normKey = cat.name.toLowerCase().replace(/\s+/g, "_");
 
-    const value = Number(formData[key]) || 0;
+    const rawValue =
+      formData[cat.id] ??
+      formData[key] ??
+      formData[cat.name] ??
+      formData[normKey];
+
+    const value = Number(rawValue) || 0;
 
     weightedSum += value * cat.weight;
     totalWeight += cat.weight;
@@ -23,8 +30,8 @@ function calculateTotalScoreDynamic(formData, categories) {
 
   const baseScore = totalWeight > 0 ? weightedSum / totalWeight : 0;
 
-  const bonus = Number(formData.bonus) || 0;
-  const penalty = Number(formData.penalty) || 0;
+  const bonus = Number(formData.bonus ?? formData["Thưởng"] ?? formData["thưởng"]) || 0;
+  const penalty = Number(formData.penalty ?? formData["Phạt"] ?? formData["phạt"]) || 0;
   const activityScore = Number(formData.activityScore) || 0;
 
   const finalScore = baseScore + bonus - penalty + activityScore;
