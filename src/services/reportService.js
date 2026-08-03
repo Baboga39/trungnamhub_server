@@ -76,28 +76,50 @@ const exportBatchAllPDF = async (year, quarter, email) => {
     where: { active: true },
     select: { id: true },
   });
-const reports = await Promise.all(
-  members.map((member) =>
-    limit(() =>
-      retry(
-        () =>
-          generateMemberReportPDF(
-            member.id,
-            year,
-            quarter,
-            null
-          ),
-        3
+  const reports = await Promise.all(
+    members.map((member) =>
+      limit(() =>
+        retry(
+          () =>
+            generateMemberReportPDF(
+              member.id,
+              year,
+              quarter,
+              null
+            ),
+          3
+        )
       )
     )
-  )
-);
+  );
 
-const zipBuffer = await createZip(reports);
-return {
-  filename: `All_Members_Q${quarter}_${year}.zip`,
-  buffer: zipBuffer,
-};
+  const zipBuffer = await createZip(reports);
+
+  if (email) {
+    let emailString = Array.isArray(email) ? email.join(", ") : email;
+    sendReportMail({
+      meta: {
+        toEmail: emailString,
+        tenTruongDoan: "Quản trị viên",
+        tieuDeBaoCao: `Báo cáo hàng loạt Tất cả đoàn sinh Q${quarter}/${year}`,
+        tenNguoiGui: "Hệ thống Trung Nam",
+        loaiBaoCao: "Hàng loạt",
+      },
+      attachments: [
+        {
+          filename: `All_Members_Q${quarter}_${year}.zip`,
+          content: zipBuffer,
+        },
+      ],
+    }).catch((err) => {
+      console.error("❌ Send Batch Report Mail Error: ", err);
+    });
+  }
+
+  return {
+    filename: `All_Members_Q${quarter}_${year}.zip`,
+    buffer: zipBuffer,
+  };
 };
 
 
@@ -322,25 +344,25 @@ const generateMemberReportPDF = async (memberId, year, quarter, email) => {
 
   const pdfBuffer = await generatePDFBuffer(docDefinition);
 
-  // if (emailString) {
-  //   sendReportMail({
-  //     meta: {
-  //       toEmail: emailString,
-  //       tenTruongDoan: user?.name || "Trung Nam Hub",
-  //       tieuDeBaoCao: `Báo cáo quý ${quarter} của ${data.name}`,
-  //       tenNguoiGui: "Hệ thống Trung Nam",
-  //       loaiBaoCao: "Quý",
-  //     },
-  //     attachments: [
-  //       {
-  //         filename: `${data.name}_Q${quarter}_${year}.pdf`,
-  //         content: pdfBuffer,
-  //       },
-  //     ],
-  //   }).catch((err) => {
-  //     console.error("❌ Send Report Mail Promise Error: ", err);
-  //   });
-  // }
+  if (emailString) {
+    sendReportMail({
+      meta: {
+        toEmail: emailString,
+        tenTruongDoan: user?.name || "Trung Nam Hub",
+        tieuDeBaoCao: `Báo cáo quý ${quarter} của ${data.name}`,
+        tenNguoiGui: "Hệ thống Trung Nam",
+        loaiBaoCao: "Quý",
+      },
+      attachments: [
+        {
+          filename: `${data.name}_Q${quarter}_${year}.pdf`,
+          content: pdfBuffer,
+        },
+      ],
+    }).catch((err) => {
+      console.error("❌ Send Report Mail Promise Error: ", err);
+    });
+  }
 
  return {
   filename: `${data.name}_Q${quarter}_${year}.pdf`,
