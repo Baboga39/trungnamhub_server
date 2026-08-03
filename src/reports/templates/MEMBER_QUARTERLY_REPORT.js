@@ -7,6 +7,7 @@ module.exports = {
     "Bộ báo cáo thống kê tình hình sinh hoạt, thi đua của một đoàn sinh cụ thể. Kết xuất định dạng PDF và gửi qua Email.",
   icon: "User",
   color: "bg-blue-500",
+  category: "Đoàn sinh",
 
   inputs: [
     {

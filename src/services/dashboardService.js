@@ -1,14 +1,16 @@
 // src/services/dashboardService.js
 const prisma = require("../libs/prisma");
 const { calculateTotalScoreDynamic } = require("../libs/scoreCalculator");
+const { buildBranchFilter } = require("./member.service");
 
 function calcTrendPercent(current, previous) {
   if (previous === 0) return current === 0 ? 0 : 100;
   return Number((((current - previous) / previous) * 100).toFixed(2));
 }
 
-async function getDashboardStats() {
+async function getDashboardStats(user) {
   const now = new Date();
+  const branchFilter = buildBranchFilter(user);
 
   const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -32,25 +34,62 @@ async function getDashboardStats() {
 
     totalActiveThisMonth,
     totalActiveLastMonth,
-
-    totalSessionsThisYear,
-    totalSessionsLastYear,
   ] = await Promise.all([
-    prisma.member.count({ where: { active: true, createdAt: { lte: now } } }),
-    prisma.member.count({ where: { active: true, createdAt: { lte: endOfLastMonth } } }),
+    prisma.member.count({ where: { active: true, createdAt: { lte: now }, ...branchFilter } }),
+    prisma.member.count({ where: { active: true, createdAt: { lte: endOfLastMonth }, ...branchFilter } }),
 
+    // managers (User) are not branch-filtered
     prisma.user.count({ where: { active: true, createdAt: { lte: now } } }),
     prisma.user.count({ where: { active: true, createdAt: { lte: endOfLastMonth } } }),
 
-    prisma.attendance.count({ where: { date: { gte: startOfThisMonth, lte: now } } }),
-    prisma.attendance.count({ where: { date: { gte: startOfLastMonth, lte: endOfLastMonth } } }),
+    // attendance counts filtered by member branch via nested where
+    prisma.attendance.count({
+      where: {
+        date: { gte: startOfThisMonth, lte: now },
+        member: { ...branchFilter },
+      },
+    }),
+    prisma.attendance.count({
+      where: {
+        date: { gte: startOfLastMonth, lte: endOfLastMonth },
+        member: { ...branchFilter },
+      },
+    }),
 
-    prisma.member.count({ where: { active: true, createdAt: { lte: now } } }),
-    prisma.member.count({ where: { active: true, createdAt: { lte: endOfLastMonth } } }),
-
-    prisma.session.count({ where: { date: { gte: startOfYear, lte: endOfYear } } }),
-    prisma.session.count({ where: { date: { gte: lastYearStart, lte: lastYearEnd } } }),
+    prisma.member.count({ where: { active: true, createdAt: { lte: now }, ...branchFilter } }),
+    prisma.member.count({ where: { active: true, createdAt: { lte: endOfLastMonth }, ...branchFilter } }),
   ]);
+
+  let totalSessionsThisYear = 0;
+  let totalSessionsLastYear = 0;
+
+  if (branchFilter.branch) {
+    const [thisYearRecords, lastYearRecords] = await Promise.all([
+      prisma.attendance.findMany({
+        where: {
+          member: { branch: branchFilter.branch },
+          date: { gte: startOfYear, lte: endOfYear },
+        },
+        select: { date: true },
+        distinct: ["date"],
+      }),
+      prisma.attendance.findMany({
+        where: {
+          member: { branch: branchFilter.branch },
+          date: { gte: lastYearStart, lte: lastYearEnd },
+        },
+        select: { date: true },
+        distinct: ["date"],
+      }),
+    ]);
+    totalSessionsThisYear = thisYearRecords.length;
+    totalSessionsLastYear = lastYearRecords.length;
+  } else {
+    [totalSessionsThisYear, totalSessionsLastYear] = await Promise.all([
+      prisma.session.count({ where: { date: { gte: startOfYear, lte: endOfYear } } }),
+      prisma.session.count({ where: { date: { gte: lastYearStart, lte: lastYearEnd } } }),
+    ]);
+  }
 
   const attendanceRateThisMonth = totalActiveThisMonth
     ? (attendanceThisMonth / totalActiveThisMonth) * 100
@@ -84,14 +123,17 @@ async function getDashboardStats() {
     },
   };
 }
-async function getRiskMembers() {
+
+async function getRiskMembers(user) {
+  const branchFilter = buildBranchFilter(user);
+
   const now = new Date();
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(now.getMonth() - 6);
   const currentYear = now.getFullYear();
 
   const members = await prisma.member.findMany({
-    where: { active: true },
+    where: { active: true, ...branchFilter },
     include: {
       attendances: {
         where: {
@@ -173,16 +215,18 @@ async function getRiskMembers() {
     .slice(0, 5);
 }
 
-async function getAttendanceStreakTop(limit = 10) {
+async function getAttendanceStreakTop(user, limit = 10) {
+  const branchFilter = buildBranchFilter(user);
+
   // 1️⃣ Lấy toàn bộ session
   const sessions = await prisma.session.findMany({
     orderBy: { date: "asc" },
     select: { id: true, date: true },
   });
 
-  // 2️⃣ Lấy đoàn sinh + attendance
+  // 2️⃣ Lấy đoàn sinh + attendance, filtered by branch
   const members = await prisma.member.findMany({
-    where: { active: true },
+    where: { active: true, ...branchFilter },
     select: {
       id: true,
       name: true,

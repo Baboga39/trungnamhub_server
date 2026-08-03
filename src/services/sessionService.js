@@ -14,20 +14,23 @@ async function createSession(userId) {
 }
 
 
-async function getSessionByDate(date) {
-  return prisma.session.findUnique({
-    where: { date },
+async function getSessionByDate(date, branch = null) {
+  return prisma.session.findFirst({
+    where: {
+      date,
+      branch: branch || null,
+    },
   });
 }
 
-async function ensureSession(date, userId) {
-  // check if exists
-  let session = await getSessionByDate(date);
+async function ensureSession(date, userId, branch = null) {
+  let session = await getSessionByDate(date, branch);
 
   if (!session) {
     session = await prisma.session.create({
       data: {
         date,
+        branch: branch || null,
         createdById: Number(userId),
         createdAt: new Date(),
       },

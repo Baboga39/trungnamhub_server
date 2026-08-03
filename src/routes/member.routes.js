@@ -9,6 +9,8 @@ router.get("/", middlewares.auth, controller.getAll);
 router.get("/active", middlewares.auth, controller.getMembersActive);
 router.post("/",middlewares.auth,middlewares.validation(memberSchema), controller.upsert);  
 router.patch("/status", middlewares.auth, controller.changeStatus);
+router.patch("/promote-branch", middlewares.auth, controller.promoteBranch);
+router.get("/branches", middlewares.auth, controller.getBranchList);
 router.get("/:memberId/history", middlewares.auth, controller.getMemberStatusHistory);
 router.delete("/history", middlewares.auth, controller.deleteHistoryById);
 

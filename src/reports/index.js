@@ -20,6 +20,7 @@ fs.readdirSync(templatesDir).forEach((file) => {
       description: template.description,
       icon: template.icon,
       color: template.color,
+      category: template.category || "Khác",
       inputs: template.inputs
     });
   }

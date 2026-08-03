@@ -126,13 +126,17 @@ model ScreenPermission {
 
 model Session {
   id          Int          @id @default(autoincrement())
-  date        DateTime     @unique
+  date        DateTime
+  branch      String?
   createdById Int
   createdAt   DateTime     @default(now())
   attendances Attendance[]
   createdBy   User         @relation(fields: [createdById], references: [id])
 
+  @@unique([date, branch])
   @@index([createdById])
+  @@index([branch])
+  @@index([date])
 }
 
 model Activity {

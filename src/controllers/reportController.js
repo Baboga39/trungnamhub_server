@@ -19,7 +19,8 @@ const executeReport = async (req, res, next) => {
       return res.status(400).json({ message: "Không tìm thấy báo cáo: " + templateId });
     }
 
-    return await handler(parameters, res);
+    // Pass req.user so handlers can apply branch filtering
+    return await handler(parameters, res, req.user);
   } catch (err) {
     next(err);
   }

@@ -74,6 +74,25 @@ async function deleteHistoryById(req, res, next) {
   }
 }
 
+async function promoteBranch(req, res, next) {
+  try {
+    const { memberId, note } = req.body;
+    const member = await services.memberService.promoteBranch(memberId, note);
+    return res.ok(member, "Branch promoted successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function getBranchList(req, res, next) {
+  try {
+    const list = services.memberService.getBranchList();
+    return res.ok(list, "Branch list fetched successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   upsert,
   getAll,
@@ -83,4 +102,6 @@ module.exports = {
   changeStatus,
   getMemberStatusHistory,
   deleteHistoryById,
+  promoteBranch,
+  getBranchList,
 };

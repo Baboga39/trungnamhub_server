@@ -7,6 +7,7 @@ module.exports = {
     "Tự động kết xuất và gửi báo cáo PDF hàng loạt cho tất cả đoàn sinh đang hoạt động.",
   icon: "Users",
   color: "bg-purple-500",
+  category: "Đoàn sinh",
 
   inputs: [
     {
@@ -33,13 +34,14 @@ module.exports = {
     },
   ],
 
-  handler: async (parameters, res) => {
+  handler: async (parameters, res, user) => {
     const { year, quarter, email } = parameters;
 
     const zip = await service.reportService.exportBatchAllPDF(
       Number(year),
       Number(quarter),
-      email
+      email,
+      user
     );
 
     res.setHeader("Content-Type", "application/zip");

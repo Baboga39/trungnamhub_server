@@ -39,6 +39,7 @@ const memberSchema = Joi.object({
   address: Joi.string().max(255).optional().allow(null, ''),
   contact: Joi.string().max(100).optional().allow(null, ''),
 
+  branch: Joi.string().max(100).optional().allow(null, ''),
   active: Joi.boolean().optional().allow(null)
 });
 

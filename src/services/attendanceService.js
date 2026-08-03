@@ -45,7 +45,20 @@ async function markAttendance(user, recordsByDate) {
     const parsedDate = parseValidDate(dateKey);
     if (!parsedDate) continue;
 
-    const session = await sessionService.ensureSession(parsedDate, user.userId);
+    // Detect branch from first member being marked or fallback to user branch
+    const memberIds = Object.keys(members).map(Number).filter(Boolean);
+    let detectedBranch = user?.branch || null;
+    if (memberIds.length > 0) {
+      const sampleMember = await prisma.member.findUnique({
+        where: { id: memberIds[0] },
+        select: { branch: true },
+      });
+      if (sampleMember?.branch) {
+        detectedBranch = sampleMember.branch;
+      }
+    }
+
+    const session = await sessionService.ensureSession(parsedDate, user.userId, detectedBranch);
 
     for (const [memberIdStr, record] of Object.entries(members)) {
       const memberId = Number(memberIdStr);

@@ -3,9 +3,13 @@ const {
   calculateTotalScoreDynamic,
   getRank,
 } = require("../libs/scoreCalculator");
+const { buildBranchFilter } = require("./member.service");
 
-async function getAllGrades() {
+async function getAllGrades(user) {
+  const branchFilter = buildBranchFilter(user);
+
   const grades = await prisma.grade.findMany({
+    where: { mMember: { ...branchFilter } },
     include: {
       mMember: true,
       category: true,
@@ -13,6 +17,7 @@ async function getAllGrades() {
   });
 
   const activities = await prisma.activityAttendance.findMany({
+    where: { member: { ...branchFilter } },
     include: {
       activity: true,
     },
@@ -156,15 +161,33 @@ async function updateAttendanceScore(memberId, year, quarter) {
   const startDate = new Date(year, startMonth, 1);
   const endDate = new Date(year, startMonth + 3, 0);
 
-  // tổng số buổi sinh hoạt trong quý
-  const totalSessions = await prisma.session.count({
-    where: {
-      date: {
-        gte: startDate,
-        lte: endDate,
-      },
-    },
+  // Lấy thông tin ngành của member
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    select: { branch: true },
   });
+
+  let totalSessions = 0;
+  if (member?.branch) {
+    totalSessions = await prisma.session.count({
+      where: {
+        branch: member.branch,
+        date: { gte: startDate, lte: endDate },
+      },
+    });
+  }
+
+  // Fallback nếu ngành chưa tạo session riêng hoặc member chưa có ngành
+  if (totalSessions === 0) {
+    totalSessions = await prisma.session.count({
+      where: {
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+    });
+  }
 
   if (totalSessions === 0) return;
 
@@ -240,15 +263,17 @@ async function recalculateAllAttendanceScores(date) {
   );
 }
 
-async function getTop3MembersByScoreThisYear() {
+async function getTop3MembersByScoreThisYear(user) {
   const quarters = getCurrentEvaluationQuarters();
   const currentYear = new Date().getFullYear();
+  const branchFilter = buildBranchFilter(user);
 
-  // lấy điểm các category
+  // lấy điểm các category, chỉ lấy member thuộc branch của user
   const grades = await prisma.grade.findMany({
     where: {
       year: currentYear,
       quarter: { in: quarters },
+      mMember: { ...branchFilter },
     },
     include: {
       category: true,
@@ -328,14 +353,16 @@ async function getTop3MembersByScoreThisYear() {
   return result.sort((a, b) => b.totalScore - a.totalScore).slice(0, 3);
 }
 
-async function getRankingThisYear() {
+async function getRankingThisYear(user) {
   const quarters = getCurrentEvaluationQuarters();
   const currentYear = new Date().getFullYear();
+  const branchFilter = buildBranchFilter(user);
 
   const grades = await prisma.grade.findMany({
     where: {
       year: currentYear,
       quarter: { in: quarters },
+      mMember: { ...branchFilter },
     },
     include: {
       mMember: true,
@@ -408,13 +435,15 @@ async function getRankingThisYear() {
       rank: index + 1,
     }));
 }
-async function getGradeTrendTimeline() {
+async function getGradeTrendTimeline(user) {
   const currentYear = new Date().getFullYear();
+  const branchFilter = buildBranchFilter(user);
 
-  // Lấy toàn bộ grade trong năm
+  // Lấy toàn bộ grade trong năm, lọc theo branch
   const grades = await prisma.grade.findMany({
     where: {
       year: currentYear,
+      mMember: { ...branchFilter },
     },
     select: {
       score: true,

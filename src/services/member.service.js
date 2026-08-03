@@ -242,6 +242,72 @@ async function deleteHistory(ids) {
   });
 }
 
+// === Branch Promotion ===
+const BRANCH_LIST = [
+  { level: 1, name: "Đồng" },
+  { level: 2, name: "Thiếu" },
+  { level: 3, name: "Thanh" },
+];
+
+function getBranchLevel(branchName) {
+  if (!branchName) return null;
+  const normalized = branchName.trim().normalize("NFC");
+  return BRANCH_LIST.find(
+    (b) => normalized.toLowerCase() === b.name.toLowerCase()
+  ) || null;
+}
+
+async function promoteBranch(memberId, note) {
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+  });
+
+  if (!member) {
+    throw { statusCode: 404, message: "Member not found" };
+  }
+
+  const currentBranch = getBranchLevel(member.branch);
+
+  if (!currentBranch) {
+    throw {
+      statusCode: 400,
+      message: `Ngành hiện tại "${member.branch || "(trống)"}" không hợp lệ. Các ngành hợp lệ: ${BRANCH_LIST.map((b) => b.name).join(", ")}`,
+    };
+  }
+
+  const nextBranch = BRANCH_LIST.find((b) => b.level === currentBranch.level + 1);
+
+  if (!nextBranch) {
+    throw {
+      statusCode: 400,
+      message: `Đoàn sinh đã ở ngành cao nhất (${currentBranch.name}), không thể lên ngành thêm.`,
+    };
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.member.update({
+      where: { id: memberId },
+      data: { branch: nextBranch.name },
+    });
+
+    await tx.memberStatusHistory.create({
+      data: {
+        memberId: memberId,
+        status: updated.active,
+        type: "BRANCH_PROMOTED",
+        date: new Date(),
+        note: note || `Lên ngành: ${currentBranch.name} → ${nextBranch.name}`,
+      },
+    });
+
+    return mapMemberStatus(updated);
+  });
+}
+
+function getBranchList() {
+  return BRANCH_LIST;
+}
+
 module.exports = {
   upsertMember,
   getMembers,
@@ -251,4 +317,8 @@ module.exports = {
   changeMemberStatus,
   getMemberStatusHistory,
   deleteHistory,
+  promoteBranch,
+  getBranchList,
+  BRANCH_LIST,
+  buildBranchFilter,
 };

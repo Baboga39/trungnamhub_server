@@ -1,10 +1,9 @@
-// src/controllers/authController.js
-const { get } = require("http");
+// src/controllers/dashboardController.js
 const services = require("../services");
 
 async function getDashboardStats(req, res, next) {
   try {
-    const result = await services.dashboardService.getDashboardStats();
+    const result = await services.dashboardService.getDashboardStats(req.user);
     return res.ok(result, "Get dashboard stats success");
   } catch (err) {
     next(err);
@@ -13,54 +12,54 @@ async function getDashboardStats(req, res, next) {
 
 async function getTop3MembersByScoreThisYear(req, res, next) {
   try {
-    const result = await services.gradeService.getTop3MembersByScoreThisYear();
+    const result = await services.gradeService.getTop3MembersByScoreThisYear(req.user);
     return res.ok(result, "Get top 3 members by score this year success");
   } catch (err) {
     next(err);
   }
 }
 
-async function getRankingThisYear(req,res,next) {
+async function getRankingThisYear(req, res, next) {
   try {
-    const result = await services.gradeService.getRankingThisYear();
+    const result = await services.gradeService.getRankingThisYear(req.user);
     return res.ok(result, "Get ranking this year success");
   } catch (err) {
     next(err);
   }
 }
-async function getGradeTrendTimeline(req,res,next) {
+
+async function getGradeTrendTimeline(req, res, next) {
   try {
-    const result = await services.gradeService.getGradeTrendTimeline(); 
+    const result = await services.gradeService.getGradeTrendTimeline(req.user);
     return res.ok(result, "Get grade trend timeline success");
   } catch (err) {
     next(err);
   }
 }
-async function getAttendanceStreakTop(req,res,next) {
+
+async function getAttendanceStreakTop(req, res, next) {
   try {
-    const result = await services.sessionService.getAttendanceStreakTop();
+    const result = await services.dashboardService.getAttendanceStreakTop(req.user);
     return res.ok(result, "Get attendance streak top success");
   } catch (err) {
     next(err);
   }
 }
-async function getRiskMembers(req,res,next) {
+
+async function getRiskMembers(req, res, next) {
   try {
-    const result = await services.dashboardService.getRiskMembers();
+    const result = await services.dashboardService.getRiskMembers(req.user);
     return res.ok(result, "Get risk members success");
   } catch (err) {
     next(err);
   }
 }
 
-async function getAttendanceStreakTop(req,res,next) {
-  try {
-    const result = await services.dashboardService.getAttendanceStreakTop();
-    return res.ok(result, "Get attendance streak top success");
-  } catch (err) {
-    next(err);
-  }
-}
-
-module.exports = { getDashboardStats, getTop3MembersByScoreThisYear, getRankingThisYear, getGradeTrendTimeline, getAttendanceStreakTop, 
-  getRiskMembers,getRiskMembers, getAttendanceStreakTop };
+module.exports = {
+  getDashboardStats,
+  getTop3MembersByScoreThisYear,
+  getRankingThisYear,
+  getGradeTrendTimeline,
+  getAttendanceStreakTop,
+  getRiskMembers,
+};

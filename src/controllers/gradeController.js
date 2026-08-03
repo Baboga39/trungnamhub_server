@@ -2,7 +2,7 @@ const service = require("../services");
 
 async function getAllGrades(req, res, next) {
   try {
-    const grade = await service.gradeService.getAllGrades();
+    const grade = await service.gradeService.getAllGrades(req.user);
     res.ok(grade, "Fetched grades successfully");
   } catch (err) {
     next(err);
