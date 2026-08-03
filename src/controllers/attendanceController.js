@@ -25,7 +25,8 @@ async function getAttendanceByDate(req, res, next) {
 
 async function getAttendanceAll(req, res, next) {
   try {
-    const data = await services.attendanceService.getAttendanceAll();
+    const user = req.user;
+    const data = await services.attendanceService.getAttendanceAll(user);
     return res.ok(data, "Attendance fetched successfully");
   } catch (err) {
     next(err);

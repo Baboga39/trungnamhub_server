@@ -2,6 +2,7 @@
 const prisma = require("../libs/prisma");
 const sessionService = require("./sessionService");
 const { updateAttendanceScore, recalculateAllAttendanceScores } = require("./gradeService");
+const { buildBranchFilter } = require("./member.service");
 
 
 function validateRecordsFormat(recordsByDate) {
@@ -125,9 +126,17 @@ async function getAttendanceByDate(date) {
 /**
  * Get all attendance records.
  */
-async function getAttendanceAll() {
+async function getAttendanceAll(user) {
   return prisma.attendance.findMany({
+    where: {
+      session: {
+        branch: user.branch,
+      },
+    },
     include: attendanceInclude,
+    orderBy: {
+      date: "desc",
+    },
   });
 }
 
