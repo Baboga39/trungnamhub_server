@@ -18,12 +18,14 @@ const attendanceColorMap = { present: "#16a34a", absent: "#dc2626", late: "#f59e
 const buildPDFDefinition = async (member, score, attendance, activity, year, quarter, rank, rankColor) => {
   const chartBase64 = `data:image/png;base64,${(await buildChartImage(score.rows)).toString("base64")}`;
 
-  const headerFillColor = "#1e40af";
-  const headerTextColor = "white";
-  const subHeaderColor = "#dbeafe";
-  const titleColor = "#0f172a";
-  const subtitleColor = "#475569";
-  const accentColor = "#2563eb";
+  const headerFillColor = "#2f80ed";
+  const headerTextColor = "#ffffff";
+  const subHeaderColor = "#bfdbfe";
+  const titleColor = "#102a43";
+  const subtitleColor = "#486581";
+  const accentColor = "#2f80ed";
+  const softBlue = "#eef6ff";
+  const borderColor = "#d9e6f2";
 
   const scoreTableBody = [
     [
@@ -78,91 +80,108 @@ const buildPDFDefinition = async (member, score, attendance, activity, year, qua
       margin: [40, 10, 40, 10],
     }),
     content: [
-      // Header
+      // Header: a calm report cover band with a stable table layout.
       {
-        columns: [
-          {
-            width: 8,
-            canvas: [
-              { type: "rect", x: 0, y: 0, w: 8, h: 60, fillOpacity: 1, color: accentColor },
-            ],
-          },
-          {
-            stack: [
-              { text: `BÁO CÁO ĐỊA VỊ`, fontSize: 28, bold: true, color: titleColor },
-              { text: `Quý ${quarter}/${year}`, fontSize: 14, color: accentColor, margin: [0, 4, 0, 0] },
-            ],
-            margin: [16, 8, 0, 8],
-          },
-        ],
-        columnGap: 0,
-        margin: [0, 0, 0, 24],
-        fillColor: "#ffffff",
+        table: {
+          widths: [8, "*", 92],
+          body: [[
+            { text: "", fillColor: accentColor, border: [false, false, false, false] },
+            {
+              stack: [
+                { text: "BÁO CÁO CÁ NHÂN", fontSize: 23, bold: true, color: titleColor },
+                { text: "Kết quả rèn luyện và tham gia hoạt động", fontSize: 10, color: subtitleColor, margin: [0, 5, 0, 0] },
+              ],
+              fillColor: softBlue,
+              margin: [18, 15, 10, 15],
+              border: [false, false, false, false],
+            },
+            {
+              stack: [
+                { text: `QUÝ ${quarter}`, fontSize: 10, bold: true, color: "#ffffff", alignment: "center" },
+                { text: String(year), fontSize: 16, bold: true, color: "#ffffff", alignment: "center", margin: [0, 4, 0, 0] },
+              ],
+              fillColor: accentColor,
+              margin: [8, 15, 8, 15],
+              border: [false, false, false, false],
+            },
+          ]],
+        },
+        layout: "noBorders",
+        margin: [0, 0, 0, 18],
       },
 
-      // Member Info & Stats
+      // Member profile and summary metrics
       {
-        columns: [
-          {
-            stack: [
-              { text: member.name, fontSize: 16, bold: true, color: titleColor, margin: [0, 0, 0, 10] },
-              {
-                stack: [
-                  { text: `📅 Ngày sinh: ${formatDate(member.birthDate)}`, fontSize: 11, color: subtitleColor, margin: [0, 4, 0, 4] },
-                  { text: `📍 Xã đạo: ${member.parish || "-"}`, fontSize: 11, color: subtitleColor, margin: [0, 4, 0, 4] },
-                  { text: `🎓 Năm vào đoàn: ${member.startYear || "-"}`, fontSize: 11, color: subtitleColor, margin: [0, 4, 0, 0] },
+        table: {
+          widths: ["38%", "62%"],
+          body: [[
+            {
+              stack: [
+                { text: member.name, fontSize: 15, bold: true, color: titleColor, margin: [0, 0, 0, 10] },
+                { text: `Ngày sinh: ${formatDate(member.birthDate)}`, fontSize: 10, color: subtitleColor, margin: [0, 3, 0, 3] },
+                { text: `Xã đạo: ${member.parish || "-"}`, fontSize: 10, color: subtitleColor, margin: [0, 3, 0, 3] },
+                { text: `Năm vào đoàn: ${member.startYear || "-"}`, fontSize: 10, color: subtitleColor, margin: [0, 3, 0, 0] },
+              ],
+              fillColor: softBlue,
+              margin: [14, 14, 10, 14],
+              border: [false, false, false, false],
+            },
+            {
+              table: {
+                widths: ["*", "*"],
+                body: [
+                  [
+                    {
+                      stack: [
+                        { text: "Điểm TB", fontSize: 8, color: subtitleColor, alignment: "center", bold: true },
+                        { text: score.total.toFixed(2), fontSize: 19, bold: true, color: accentColor, alignment: "center", margin: [0, 5, 0, 0] },
+                      ],
+                      fillColor: "#ffffff", margin: [8, 14, 8, 14], border: [true, true, true, true], borderColor,
+                    },
+                    {
+                      stack: [
+                        { text: "Xếp loại", fontSize: 8, color: subtitleColor, alignment: "center", bold: true },
+                        { text: rank, fontSize: 19, bold: true, color: rankColor, alignment: "center", margin: [0, 5, 0, 0] },
+                      ],
+                      fillColor: "#ffffff", margin: [8, 14, 8, 14], border: [true, true, true, true], borderColor,
+                    },
+                  ],
+                  [
+                    {
+                      stack: [
+                        { text: "Có mặt", fontSize: 8, color: subtitleColor, alignment: "center", bold: true },
+                        { text: `${attendance.summary.present}`, fontSize: 19, bold: true, color: "#159570", alignment: "center", margin: [0, 5, 0, 0] },
+                      ],
+                      fillColor: "#ffffff", margin: [8, 14, 8, 14], border: [true, true, true, true], borderColor,
+                    },
+                    {
+                      stack: [
+                        { text: "Hoạt động", fontSize: 8, color: subtitleColor, alignment: "center", bold: true },
+                        { text: `${activity.summary.joined}/${activity.summary.total}`, fontSize: 19, bold: true, color: "#d98200", alignment: "center", margin: [0, 5, 0, 0] },
+                      ],
+                      fillColor: "#ffffff", margin: [8, 14, 8, 14], border: [true, true, true, true], borderColor,
+                    },
+                  ],
                 ],
               },
-            ],
-            width: "45%",
-          },
-          {
-            columns: [
-              {
-                stack: [
-                  { text: "Điểm TB", fontSize: 9, color: subtitleColor, alignment: "center", bold: true },
-                  { text: score.total.toFixed(2), fontSize: 18, bold: true, color: accentColor, alignment: "center", margin: [0, 4, 0, 0] },
-                ],
-                width: "*",
-                border: [0, 0, 1, 0],
-                borderColor: "#e2e8f0",
-              },
-              {
-                stack: [
-                  { text: "Xếp loại", fontSize: 9, color: subtitleColor, alignment: "center", bold: true },
-                  { text: rank, fontSize: 18, bold: true, color: rankColor, alignment: "center", margin: [0, 4, 0, 0] },
-                ],
-                width: "*",
-                border: [0, 0, 1, 0],
-                borderColor: "#e2e8f0",
-              },
-              {
-                stack: [
-                  { text: "Có mặt", fontSize: 9, color: subtitleColor, alignment: "center", bold: true },
-                  { text: `${attendance.summary.present}`, fontSize: 18, bold: true, color: "#16a34a", alignment: "center", margin: [0, 4, 0, 0] },
-                ],
-                width: "*",
-                border: [0, 0, 1, 0],
-                borderColor: "#e2e8f0",
-              },
-              {
-                stack: [
-                  { text: "Hoạt động", fontSize: 9, color: subtitleColor, alignment: "center", bold: true },
-                  { text: `${activity.summary.joined}/${activity.summary.total}`, fontSize: 18, bold: true, color: "#f59e0b", alignment: "center", margin: [0, 4, 0, 0] },
-                ],
-                width: "*",
-              },
-            ],
-            columnGap: 0,
-            width: "55%",
-          },
-        ],
-        columnGap: 20,
-        margin: [0, 0, 0, 20],
+              layout: "noBorders",
+              fillColor: softBlue,
+              margin: [8, 8, 8, 8],
+              border: [false, false, false, false],
+            },
+          ]],
+        },
+        layout: {
+          hLineWidth: () => 0.6,
+          vLineWidth: () => 0.6,
+          hLineColor: () => borderColor,
+          vLineColor: () => borderColor,
+        },
+        margin: [0, 0, 0, 22],
       },
 
       // Chart Section
-      { text: "📊 Biểu đồ điểm số chi tiết", fontSize: 13, bold: true, color: titleColor, margin: [0, 0, 0, 10] },
+      { text: "Biểu đồ điểm số chi tiết", fontSize: 13, bold: true, color: titleColor, margin: [0, 0, 0, 10] },
       { image: chartBase64, width: 510, margin: [0, 0, 0, 20], alignment: "center" },
 
       // Tables
@@ -170,7 +189,7 @@ const buildPDFDefinition = async (member, score, attendance, activity, year, qua
         columns: [
           {
             stack: [
-              { text: "📋 Chi tiết điểm", fontSize: 13, bold: true, color: titleColor, margin: [0, 0, 0, 8] },
+              { text: "Chi tiết điểm", fontSize: 13, bold: true, color: titleColor, margin: [0, 0, 0, 8] },
               {
                 table: {
                   headerRows: 1,
@@ -192,7 +211,7 @@ const buildPDFDefinition = async (member, score, attendance, activity, year, qua
           },
           {
             stack: [
-              { text: "✓ Điểm danh", fontSize: 13, bold: true, color: titleColor, margin: [0, 0, 0, 8] },
+              { text: "Điểm danh", fontSize: 13, bold: true, color: titleColor, margin: [0, 0, 0, 8] },
               {
                 table: {
                   headerRows: 1,
@@ -221,7 +240,7 @@ const buildPDFDefinition = async (member, score, attendance, activity, year, qua
       {
         pageBreak: "before",
         stack: [
-          { text: "🎯 Hoạt động tham gia", fontSize: 13, bold: true, color: titleColor, margin: [0, 0, 0, 8] },
+          { text: "Hoạt động tham gia", fontSize: 13, bold: true, color: titleColor, margin: [0, 0, 0, 8] },
           {
             table: {
               headerRows: 1,
