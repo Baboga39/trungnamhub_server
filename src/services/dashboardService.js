@@ -218,23 +218,56 @@ async function getRiskMembers(user) {
 async function getAttendanceStreakTop(user, limit = 10) {
   const branchFilter = buildBranchFilter(user);
 
-  // 1️⃣ Lấy toàn bộ session
+  // ============================================================
+  // 1. Lấy toàn bộ session
+  // ============================================================
   const sessions = await prisma.session.findMany({
-    orderBy: { date: "asc" },
-    select: { id: true, date: true },
+    orderBy: {
+      date: "asc",
+    },
+    select: {
+      id: true,
+      date: true,
+      branch: true,
+    },
   });
 
-  // 2️⃣ Lấy đoàn sinh + attendance, filtered by branch
+  // ============================================================
+  // 2. Lấy member
+  // ============================================================
   const members = await prisma.member.findMany({
-    where: { active: true, ...branchFilter },
+    where: {
+      active: true,
+      ...branchFilter,
+    },
+
     select: {
       id: true,
       name: true,
       parish: true,
+      branch: true,
+      startDate: true,
+
       attendances: {
         select: {
           sessionId: true,
-          status: true, // absent | late
+          status: true,
+        },
+      },
+
+      // Không filter type ở đây.
+      // Vì DB thực tế có thể đang lưu "PROMOTED",
+      // "Chuyển ngành", hoặc giá trị khác.
+      statusHistory: {
+        orderBy: {
+          date: "desc",
+        },
+        select: {
+          id: true,
+          date: true,
+          type: true,
+          fromBranch: true,
+          toBranch: true,
         },
       },
     },
@@ -242,36 +275,163 @@ async function getAttendanceStreakTop(user, limit = 10) {
 
   const results = [];
 
+  // ============================================================
+  // 3. Tính streak cho từng member
+  // ============================================================
   for (const m of members) {
-    // map nhanh sessionId -> status
+    // ----------------------------------------------------------
+    // Xác định ngày bắt đầu tính streak
+    // ----------------------------------------------------------
+
+    let streakStartDate = m.startDate || null;
+
+    // Nếu member đang thuộc một branch
+    if (m.branch) {
+      /*
+       * Tìm lần chuyển gần nhất mà:
+       *
+       * toBranch = branch hiện tại
+       *
+       * Ví dụ:
+       *
+       * Member.branch = "Thiếu"
+       *
+       * History:
+       *
+       * 10/08/2026
+       * fromBranch = "Đồng"
+       * toBranch   = "Thiếu"
+       *
+       * => streakStartDate = 10/08/2026
+       */
+
+      const latestBranchChange = m.statusHistory.find(
+        (history) =>
+          history.toBranch === m.branch &&
+          history.date <= new Date()
+      );
+
+      if (latestBranchChange) {
+        streakStartDate = latestBranchChange.date;
+      }
+    }
+
+    // ----------------------------------------------------------
+    // Chuẩn hóa ngày bắt đầu
+    //
+    // Nếu lên ngành ngày 10/08 thì tính session từ đầu ngày
+    // 10/08 trở đi.
+    // ----------------------------------------------------------
+
+    if (streakStartDate) {
+      streakStartDate = new Date(streakStartDate);
+
+      streakStartDate.setHours(
+        0,
+        0,
+        0,
+        0
+      );
+    }
+
+    // ----------------------------------------------------------
+    // Map attendance
+    // sessionId -> status
+    // ----------------------------------------------------------
+
     const attendanceMap = new Map(
-      m.attendances.map((a) => [a.sessionId, a.status])
+      m.attendances
+        .filter((a) => a.sessionId !== null)
+        .map((a) => [
+          a.sessionId,
+          a.status,
+        ])
     );
 
-    let currentStreak = 0;
+    // ----------------------------------------------------------
+    // Chỉ lấy session:
+    //
+    // 1. Đúng branch hiện tại
+    // 2. Sau ngày bắt đầu branch hiện tại
+    // ----------------------------------------------------------
+
+    const validSessions = sessions.filter((session) => {
+      // -----------------------------------------
+      // Branch
+      // -----------------------------------------
+      if (m.branch) {
+        if (session.branch !== m.branch) {
+          return false;
+        }
+      }
+
+      // -----------------------------------------
+      // Ngày bắt đầu
+      // -----------------------------------------
+      if (
+        streakStartDate &&
+        session.date < streakStartDate
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+
+    // Không có session
+    if (validSessions.length === 0) {
+      continue;
+    }
+
+    // ============================================================
+    // 4. LONGEST STREAK
+    // ============================================================
+
     let longestStreak = 0;
     let tempStreak = 0;
 
-    // 3️⃣ Filter session sau ngày join
-    const validSessions = sessions.filter(
-      (s) => !m.joinDate || s.date >= m.joinDate
-    );
+    for (const session of validSessions) {
+      const status = attendanceMap.get(
+        session.id
+      );
 
-    // 4️⃣ longest streak
-    for (const s of validSessions) {
-      const status = attendanceMap.get(s.id);
+      /*
+       * Không có attendance record
+       * => xem như có mặt
+       *
+       * Có record:
+       * absent / late / ...
+       * => đứt chuỗi
+       */
 
       if (!status) {
         tempStreak++;
-        longestStreak = Math.max(longestStreak, tempStreak);
+
+        longestStreak = Math.max(
+          longestStreak,
+          tempStreak
+        );
       } else {
         tempStreak = 0;
       }
     }
 
-    // 5️⃣ current streak (từ session mới nhất)
-    for (let i = validSessions.length - 1; i >= 0; i--) {
-      const status = attendanceMap.get(validSessions[i].id);
+    // ============================================================
+    // 5. CURRENT STREAK
+    // ============================================================
+
+    let currentStreak = 0;
+
+    for (
+      let i = validSessions.length - 1;
+      i >= 0;
+      i--
+    ) {
+      const session = validSessions[i];
+
+      const status = attendanceMap.get(
+        session.id
+      );
 
       if (!status) {
         currentStreak++;
@@ -280,28 +440,55 @@ async function getAttendanceStreakTop(user, limit = 10) {
       }
     }
 
-    if (currentStreak > 0 || longestStreak > 0) {
+    // ============================================================
+    // 6. Result
+    // ============================================================
+
+    if (
+      currentStreak > 0 ||
+      longestStreak > 0
+    ) {
       results.push({
         id: m.id,
         fullName: m.name,
         parish: m.parish || "",
+        branch: m.branch || "",
+
         currentStreak,
         longestStreak,
+
+        // Debug / frontend nếu cần
+        streakStartDate,
       });
     }
   }
 
-  // 6️⃣ sort top
+  // ============================================================
+  // 7. Sort
+  // ============================================================
+
   return results
     .sort((a, b) => {
-      if (b.currentStreak !== a.currentStreak) {
-        return b.currentStreak - a.currentStreak;
+      if (
+        b.currentStreak !==
+        a.currentStreak
+      ) {
+        return (
+          b.currentStreak -
+          a.currentStreak
+        );
       }
-      return b.longestStreak - a.longestStreak;
-    })
-    .slice(0, limit);
-}
 
+      return (
+        b.longestStreak -
+        a.longestStreak
+      );
+    })
+    .slice(
+      0,
+      Number(limit) || 10
+    );
+}
 module.exports = {
   getDashboardStats,
   getRiskMembers,

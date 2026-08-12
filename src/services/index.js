@@ -11,6 +11,7 @@ const reportService = require("./reportService");
 const mailService = require("./mailService/mailService");
 const approvalTokenService = require("./approvalTokenService");
 const documentService = require("./documentService");
+const executiveDashboardService = require("./executiveDashboardService");
 module.exports = {
   userService,
   memberService,
@@ -25,4 +26,5 @@ module.exports = {
   mailService,
   approvalTokenService,
   documentService,
+  executiveDashboardService,
 };

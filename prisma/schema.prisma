@@ -45,7 +45,6 @@ model Member {
   fatherName          String?
   motherName          String?
   address             String?
-  promotionDate       DateTime?
   contact             String?
   active              Boolean               @default(true)
   createdAt           DateTime              @default(now())
@@ -54,6 +53,7 @@ model Member {
   userId              Int?
   branch              String?
   startDate           DateTime?
+  promotionDate       DateTime?
   activityAttendances ActivityAttendance[]
   attendances         Attendance[]
   grades              Grade[]
@@ -76,6 +76,7 @@ model Attendance {
   sessionId  Int?
   status     String
   updatedAt  DateTime @updatedAt
+  branch     String?
   markedBy   User?    @relation("MarkedBy", fields: [markedById], references: [id])
   member     Member   @relation(fields: [memberId], references: [id])
   session    Session? @relation(fields: [sessionId], references: [id])
@@ -83,6 +84,7 @@ model Attendance {
   @@unique([date, memberId])
   @@index([memberId])
   @@index([date])
+  @@index([branch])
 }
 
 model Grade {
@@ -127,9 +129,9 @@ model ScreenPermission {
 model Session {
   id          Int          @id @default(autoincrement())
   date        DateTime
-  branch      String?
   createdById Int
   createdAt   DateTime     @default(now())
+  branch      String?
   attendances Attendance[]
   createdBy   User         @relation(fields: [createdById], references: [id])
 
@@ -175,17 +177,19 @@ model ActivityAttendance {
 }
 
 model MemberStatusHistory {
-  id        Int      @id @default(autoincrement())
-  memberId  Int
-  note      String?
-  createdAt DateTime @default(now())
-  type      String? // ACTIVE | INACTIVE | PROMOTED
-
-  date   DateTime
-  status Boolean
-  member Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  id         Int      @id @default(autoincrement())
+  memberId   Int
+  note       String?
+  createdAt  DateTime @default(now())
+  date       DateTime
+  status     Boolean
+  type       String?
+  fromBranch String?
+  toBranch   String?
+  member     Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([memberId])
+  @@index([memberId, type, date])
 }
 
 model Document {

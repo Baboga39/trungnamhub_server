@@ -17,11 +17,21 @@ router.get(
   middlewares.auth,
   attendanceController.getAttendanceByDate
 );
+router.get(
+  "/summary/:date/:sessionId",
+  middlewares.auth,
+  attendanceController.getAttendanceSummary
+);
 
 router.get(
   "/member/:memberId",
   middlewares.auth,
   attendanceController.getAttendanceByMember
+);
+router.post(
+  "/ensure-session",
+  middlewares.auth,
+  attendanceController.ensureSession
 );
 
 router.get(

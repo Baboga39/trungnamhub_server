@@ -17,7 +17,9 @@ function mapMemberStatus(member) {
   };
 }
 function buildBranchFilter(user) {
-  if (user?.role === "admin") return {};
+  const role = String(user?.role || "").toLowerCase();
+  const branchStr = String(user?.branch || "").toLowerCase();
+  if (role === "admin" || branchStr === "admin") return {};
 
   const branch = normalizeBranch(user?.branch);
 
@@ -249,6 +251,62 @@ const BRANCH_LIST = [
   { level: 3, name: "Thanh" },
 ];
 
+/**
+ * Trả về ngành của member tại một ngày cụ thể.
+ *
+ * Logic:
+ * 1. Tìm record BRANCH_PROMOTED gần nhất có date <= targetDate.
+ * 2. Nếu tìm thấy và có toBranch → return toBranch.
+ * 3. Nếu không có lịch sử → return member.branch (ngành hiện tại).
+ *
+ * @param {number} memberId
+ * @param {Date}   targetDate
+ * @returns {Promise<string|null>} tên ngành
+ */
+async function getMemberBranchAtDate(memberId, targetDate) {
+  // Lấy ngành hiện tại làm fallback
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    select: { branch: true },
+  });
+
+  if (!member) return null;
+
+  // Tìm record BRANCH_PROMOTED gần nhất trước hoặc bằng targetDate
+  const historyRecord = await prisma.memberStatusHistory.findFirst({
+    where: {
+      memberId,
+      type: "BRANCH_PROMOTED",
+      date: { lte: targetDate },
+    },
+    orderBy: { date: "desc" },
+  });
+
+  if (historyRecord && historyRecord.toBranch) {
+    return historyRecord.toBranch;
+  }
+
+  // Fallback: không có lịch sử hoặc record cũ không có toBranch
+  return member.branch;
+}
+
+/**
+ * Trả về ngành của member tại thời điểm chốt Quý (cuối quý).
+ *
+ * Grade của một Quý thuộc về Ngành tại thời điểm Quarter End.
+ *
+ * @param {number} memberId
+ * @param {number} year
+ * @param {number} quarter  (1-4)
+ * @returns {Promise<string|null>}
+ */
+async function getMemberBranchAtQuarterEnd(memberId, year, quarter) {
+  const startMonth = (quarter - 1) * 3;
+  // Cuối tháng cuối của quý (giờ cuối ngày)
+  const quarterEndDate = new Date(year, startMonth + 3, 0, 23, 59, 59);
+  return getMemberBranchAtDate(memberId, quarterEndDate);
+}
+
 function getBranchLevel(branchName) {
   if (!branchName) return null;
   const normalized = branchName.trim().normalize("NFC");
@@ -257,7 +315,14 @@ function getBranchLevel(branchName) {
   ) || null;
 }
 
-async function promoteBranch(memberId, note) {
+/**
+ * Lên ngành cho member.
+ *
+ * @param {number} memberId
+ * @param {string} [note]          - Ghi chú tùy chọn
+ * @param {Date}   [effectiveDate] - Ngày nghiệp vụ thực tế lên ngành (mặc định = now)
+ */
+async function promoteBranch(memberId, note, effectiveDate) {
   const member = await prisma.member.findUnique({
     where: { id: memberId },
   });
@@ -284,6 +349,9 @@ async function promoteBranch(memberId, note) {
     };
   }
 
+  // Sử dụng effectiveDate nếu được truyền, ngược lại dùng ngày hiện tại
+  const promotionDate = effectiveDate ? new Date(effectiveDate) : new Date();
+
   return prisma.$transaction(async (tx) => {
     const updated = await tx.member.update({
       where: { id: memberId },
@@ -292,11 +360,14 @@ async function promoteBranch(memberId, note) {
 
     await tx.memberStatusHistory.create({
       data: {
-        memberId: memberId,
+        memberId,
         status: updated.active,
         type: "BRANCH_PROMOTED",
-        date: new Date(),
+        date: promotionDate,
         note: note || `Lên ngành: ${currentBranch.name} → ${nextBranch.name}`,
+        // ✅ Ghi lại lịch sử ngành đầy đủ cho historical resolver
+        fromBranch: currentBranch.name,
+        toBranch: nextBranch.name,
       },
     });
 
@@ -321,4 +392,6 @@ module.exports = {
   getBranchList,
   BRANCH_LIST,
   buildBranchFilter,
+  getMemberBranchAtDate,
+  getMemberBranchAtQuarterEnd,
 };

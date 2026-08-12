@@ -76,8 +76,8 @@ async function deleteHistoryById(req, res, next) {
 
 async function promoteBranch(req, res, next) {
   try {
-    const { memberId, note } = req.body;
-    const member = await services.memberService.promoteBranch(memberId, note);
+    const { memberId, note, effectiveDate } = req.body;
+    const member = await services.memberService.promoteBranch(memberId, note, effectiveDate);
     return res.ok(member, "Branch promoted successfully");
   } catch (err) {
     next(err);

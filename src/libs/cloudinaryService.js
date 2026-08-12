@@ -12,7 +12,7 @@ async function uploadToCloudinary(file) {
       file.path,
       {
         folder: "documents",
-        resource_type: "raw", // Raw allows non-image files like PDF, DOCX
+        resource_type: "raw", 
         use_filename: true,
         unique_filename: true,
       },
