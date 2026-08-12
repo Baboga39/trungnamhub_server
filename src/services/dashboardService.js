@@ -222,6 +222,9 @@ async function getAttendanceStreakTop(user, limit = 10) {
   // 1. Lấy toàn bộ session
   // ============================================================
   const sessions = await prisma.session.findMany({
+    where: {
+      branch: branchFilter.branch || undefined,
+    },
     orderBy: {
       date: "asc",
     },
