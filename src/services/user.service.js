@@ -70,18 +70,37 @@ async function createUser(data) {
 }
 
 async function upsertUser(data, user) {
-  let hashed = undefined;
+  const baseData = {
+    name: data.name,
+    email: data.email,
+    role: data.role,
+    branch: data.branch,
+    startYear: parseDate(data.startYear),
+    sumEvent: data.sumEvent,
+  };
+
+  let hashed;
+
   if (data.password) {
     hashed = await bcrypt.hash(data.password, 10);
   }
 
   return prisma.user.upsert({
-    where: { id: data.id || 0 },
-    update: { ...data, startYear: parseDate(data.startYear) , password: hashed },
-    create: { ...data, startYear: parseDate(data.startYear), password: hashed },
+    where: {
+      id: Number(data.id),
+    },
+
+    update: {
+      ...baseData,
+      ...(hashed ? { password: hashed } : {}),
+    },
+
+    create: {
+      ...baseData,
+      password: hashed || await bcrypt.hash("123456", 10),
+    },
   });
 }
-
 async function deleteUser(id) {
   return prisma.user.delete({ where: { id } });
 }
