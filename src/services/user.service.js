@@ -76,7 +76,7 @@ async function upsertUser(data, user) {
     role: data.role,
     branch: data.branch,
     startYear: parseDate(data.startYear),
-    sumEvent: data.sumEvent,
+    sumEvent: data.sumEvent ?? 0,
   };
 
   let hashed;
@@ -85,17 +85,23 @@ async function upsertUser(data, user) {
     hashed = await bcrypt.hash(data.password, 10);
   }
 
-  return prisma.user.upsert({
-    where: {
-      id: Number(data.id),
-    },
+  // Có ID => UPDATE
+  if (data.id !== undefined && data.id !== null && data.id !== "") {
+    return prisma.user.update({
+      where: {
+        id: Number(data.id),
+      },
 
-    update: {
-      ...baseData,
-      ...(hashed ? { password: hashed } : {}),
-    },
+      data: {
+        ...baseData,
+        ...(hashed ? { password: hashed } : {}),
+      },
+    });
+  }
 
-    create: {
+  // Không có ID => CREATE
+  return prisma.user.create({
+    data: {
       ...baseData,
       password: hashed || await bcrypt.hash("123456", 10),
     },

@@ -278,35 +278,44 @@ async function getExecutiveBranchPerformance(user, { year, quarter }) {
     where: { year: dateRange.year, quarter: dateRange.quarter },
   });
 
-  const branchDataPromises = dbBranches.map(async (rawBranch) => {
-    const branchFilter = { branch: rawBranch };
+  const allActiveMembers = await prisma.member.findMany({ where: { active: true } });
 
-    const [members, sessions, attendances, grades, activities] = await Promise.all([
-      prisma.member.findMany({ where: { active: true, ...branchFilter } }),
+  // Resolve historical branch at quarter end for all members
+  const memberBranchMap = {};
+  for (const m of allActiveMembers) {
+    const histBranch = await getMemberBranchAtQuarterEnd(m.id, dateRange.year, dateRange.quarter);
+    memberBranchMap[m.id] = normalizeDbBranch(histBranch || m.branch) || "Chưa phân ngành";
+  }
+
+  const branchDataPromises = dbBranches.map(async (rawBranch) => {
+    const branchMembers = allActiveMembers.filter((m) => memberBranchMap[m.id] === rawBranch);
+    const memberIds = branchMembers.map((m) => m.id);
+
+    const [sessions, attendances, grades, activities] = await Promise.all([
       prisma.session.findMany({ where: { branch: rawBranch, date: { gte: dateRange.startDate, lte: dateRange.endDate } } }),
       prisma.attendance.findMany({
         where: {
           date: { gte: dateRange.startDate, lte: dateRange.endDate },
-          member: { active: true, branch: rawBranch },
+          memberId: { in: memberIds },
         },
       }),
       prisma.grade.findMany({
         where: {
           year: dateRange.year,
           quarter: dateRange.quarter,
-          mMember: { active: true, branch: rawBranch },
+          memberId: { in: memberIds },
         },
         include: { category: true },
       }),
       prisma.activityAttendance.findMany({
         where: {
           activity: { year: dateRange.year, quarter: dateRange.quarter },
-          member: { active: true, branch: rawBranch },
+          memberId: { in: memberIds },
         },
       }),
     ]);
 
-    const totalMembers = members.length;
+    const totalMembers = branchMembers.length;
     const totalSessions = sessions.length || 1;
     const totalPotentialVisits = totalMembers * totalSessions;
 
@@ -335,7 +344,7 @@ async function getExecutiveBranchPerformance(user, { year, quarter }) {
     const activityRate = maxJoins > 0 ? Number(((joined / maxJoins) * 100).toFixed(1)) : 0;
 
     // Risk members for branch
-    const riskMembers = members.filter((m) => {
+    const riskMembers = branchMembers.filter((m) => {
       const mAtts = attendances.filter((a) => a.memberId === m.id && (a.status === "absent" || a.status === "late"));
       const mGrades = memberScoresMap[m.id];
       const mAvgScore = mGrades ? calculateTotalScoreDynamic(mGrades, categories) : null;
@@ -384,10 +393,10 @@ async function getExecutiveTopMembers(
   const dateRange = getQuarterDateRanges(year, quarter);
   const branchFilter = getEffectiveBranchFilter(user, branch);
 
+  // Fetch active members without strict SQL branch filter so historical branch matches are caught
   const members = await prisma.member.findMany({
     where: {
       active: true,
-      ...branchFilter,
     },
     include: {
       attendances: {
@@ -398,8 +407,6 @@ async function getExecutiveTopMembers(
           },
         },
       },
-
-      // Chỉ lấy Grade của đúng năm + quý
       grades: {
         where: {
           year: dateRange.year,
@@ -409,7 +416,6 @@ async function getExecutiveTopMembers(
           category: true,
         },
       },
-
       activityAttendances: {
         where: {
           activity: {
@@ -424,143 +430,86 @@ async function getExecutiveTopMembers(
     },
   });
 
-  // Active categories dùng cho calculateTotalScoreDynamic
   const categories = await prisma.gradeCategory.findMany({
     where: {
       active: true,
     },
   });
 
-  const totalQuarterSessions =
-    await prisma.session.count({
-      where: {
-        date: {
-          gte: dateRange.startDate,
-          lte: dateRange.endDate,
-        },
+  const totalQuarterSessions = await prisma.session.count({
+    where: {
+      date: {
+        gte: dateRange.startDate,
+        lte: dateRange.endDate,
       },
-    });
+    },
+  });
 
-  const totalQuarterActivities =
-    await prisma.activity.count({
-      where: {
-        year: dateRange.year,
-        quarter: dateRange.quarter,
-      },
-    });
+  const totalQuarterActivities = await prisma.activity.count({
+    where: {
+      year: dateRange.year,
+      quarter: dateRange.quarter,
+    },
+  });
 
-  const memberList = members.map((m) => {
-    // ============================================================
-    // 1. ATTENDANCE RATE
-    // Chỉ để hiển thị, KHÔNG tham gia ranking
-    // ============================================================
+  const requestedNormBranch = branchFilter.branch ? normalizeDbBranch(branchFilter.branch) : null;
 
-    const absent = m.attendances.filter(
-      (a) => a.status === "absent"
-    ).length;
+  const memberDataPromises = members.map(async (m) => {
+    // ✅ QUAN TRỌNG: Lấy ngành lịch sử của Đoàn sinh tại thời điểm chốt Quý
+    const historicalBranch = await getMemberBranchAtQuarterEnd(
+      m.id,
+      dateRange.year,
+      dateRange.quarter
+    );
+    const effectiveBranch = historicalBranch || m.branch || "Chưa phân ngành";
+    const normEffective = normalizeDbBranch(effectiveBranch);
 
-    const late = m.attendances.filter(
-      (a) => a.status === "late"
-    ).length;
+    // Lọc theo ngành được yêu cầu nếu có
+    if (requestedNormBranch && normEffective !== requestedNormBranch) {
+      return null;
+    }
 
-    const excused = m.attendances.filter(
-      (a) => a.status === "excused"
-    ).length;
+    const absent = m.attendances.filter((a) => a.status === "absent").length;
+    const late = m.attendances.filter((a) => a.status === "late").length;
+    const excused = m.attendances.filter((a) => a.status === "excused").length;
 
-    const absentEq =
-      absent * 1 +
-      late * 0.5 +
-      excused * 0.2;
-
+    const absentEq = absent * 1 + late * 0.5 + excused * 0.2;
     const mSessions = totalQuarterSessions || 1;
 
     const attendanceRate = Number(
-      (
-        Math.max(
-          0,
-          (mSessions - absentEq) / mSessions
-        ) * 100
-      ).toFixed(1)
+      (Math.max(0, (mSessions - absentEq) / mSessions) * 100).toFixed(1)
     );
 
-    // ============================================================
-    // 2. GRADE SCORE
-    // ĐÂY LÀ ĐIỂM CHÍNH THỨC DÙNG ĐỂ XẾP HẠNG
-    // ============================================================
-
     const scores = {};
-
     for (const g of m.grades) {
       scores[g.category.name] = g.score;
     }
 
     const baseScore = Number(
-      calculateTotalScoreDynamic(
-        scores,
-        categories
-      ).toFixed(1)
+      calculateTotalScoreDynamic(scores, categories).toFixed(1)
     );
 
-    // ============================================================
-    // 3. ACTIVITY SCORE
-    // Cộng điểm hoạt động: 0.2 mỗi hoạt động, tối đa 10
-    // (Giống logic ở gradeService.getAllGrades & FE scoreTable)
-    // ============================================================
+    const joinedAct = m.activityAttendances.length;
+    const activityScore = Math.min(joinedAct * 0.2, 10);
+    const totalScore = Number((baseScore + activityScore).toFixed(1));
 
-    const joinedAct =
-      m.activityAttendances.length;
-
-    const activityScore = Math.min(
-      joinedAct * 0.2,
-      10
-    );
-
-    const totalScore = Number(
-      (baseScore + activityScore).toFixed(1)
-    );
-
-    // ============================================================
-    // 4. ACTIVITY RATE (chỉ để hiển thị)
-    // ============================================================
-
-    const mActs =
-      totalQuarterActivities || 1;
-
-    const activityRate = Number(
-      ((joinedAct / mActs) * 100).toFixed(1)
-    );
-
-    // ============================================================
-    // 5. RANK
-    // DÙNG TRỰC TIẾP totalScore (baseScore + activityScore)
-    // ============================================================
+    const mActs = totalQuarterActivities || 1;
+    const activityRate = Number(((joinedAct / mActs) * 100).toFixed(1));
 
     return {
       id: m.id,
       name: m.name,
       parish: m.parish || "",
-
-      branch: getDisplayBranchName(
-        m.branch || "Chưa phân ngành"
-      ),
-
-      // Điểm dùng để xếp hạng (đã bao gồm activity score)
+      branch: getDisplayBranchName(effectiveBranch),
       totalScore,
-
-      // Giữ score để tương thích frontend cũ
       score: totalScore,
-
       attendanceRate,
       activityRate,
-
       rankText: getRank(totalScore),
     };
   });
 
-  // ============================================================
-  // 5. SORT
-  // DEFAULT = SCORE CALCULATOR
-  // ============================================================
+  let memberList = (await Promise.all(memberDataPromises)).filter(Boolean);
 
   memberList.sort((a, b) => {
     if (sortBy === "attendance") {
@@ -571,18 +520,13 @@ async function getExecutiveTopMembers(
       return b.activityRate - a.activityRate;
     }
 
-    // score / overall / mặc định
     return b.totalScore - a.totalScore;
   });
-
-  // ============================================================
-  // 6. TOP N
-  // ============================================================
 
   const medals = ["🥇", "🥈", "🥉"];
 
   return memberList
-    .slice(0, Number(limit) || 10)
+    .slice(0, Number(limit) || 100)
     .map((m, idx) => ({
       ...m,
       rank: idx + 1,
@@ -704,16 +648,8 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
   const dateRange = getQuarterDateRanges(year, quarter);
   const branchFilter = getEffectiveBranchFilter(user, branch);
 
-  // ============================================================
-  // 1. Date range: 6 months until the end of selected quarter
-  // ============================================================
-
   const sixMonthsAgo = new Date(dateRange.endDate);
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-
-  // ============================================================
-  // 2. Get active members (with attendance + grades for the SPECIFIC quarter)
-  // ============================================================
 
   const members = await prisma.member.findMany({
     where: {
@@ -721,7 +657,6 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
       ...branchFilter,
     },
     include: {
-      // Attendance in the last 6 months up to quarter end
       attendances: {
         where: {
           date: {
@@ -733,8 +668,6 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
           status: true,
         },
       },
-
-      // ✅ FIX: Grade of selected YEAR + QUARTER (not just year)
       grades: {
         where: {
           year: dateRange.year,
@@ -747,23 +680,11 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
     },
   });
 
-  // ============================================================
-  // 3. Active grade categories
-  // ============================================================
-
   const categories = await prisma.gradeCategory.findMany({
     where: {
       active: true,
     },
   });
-
-  // ============================================================
-  // 4. Resolve historical branch for each member at quarter end
-  //
-  // QUAN TRỌNG: Dùng getMemberBranchAtQuarterEnd thay vì member.branch
-  // để xử lý đúng trường hợp thăng ngành giữa quý.
-  // Grade Q3 thuộc về ngành tại thời điểm chốt Q3.
-  // ============================================================
 
   const memberDataPromises = members.map(async (member) => {
     const scoresMap = {};
@@ -778,7 +699,6 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
       averageGrade = calculateTotalScoreDynamic(scoresMap, categories);
     }
 
-    // Attendance equivalent
     const attendanceEquivalent = member.attendances.reduce(
       (total, attendance) => {
         switch (attendance.status) {
@@ -816,13 +736,6 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
 
   const memberData = await Promise.all(memberDataPromises);
 
-  // ============================================================
-  // 5. Calculate average score PER BRANCH (using resolved branches)
-  //
-  // Admin: Đồng → compare with Đồng avg, Thiếu → Thiếu avg, ...
-  // User:  Only their branch will exist here.
-  // ============================================================
-
   const branchScoreGroups = {};
 
   for (const data of memberData) {
@@ -835,20 +748,12 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
     branchScoreGroups[branchKey].push(data.averageGrade);
   }
 
-  // ============================================================
-  // 6. Calculate branch averages
-  // ============================================================
-
   const branchAverageMap = {};
   for (const [branchKey, scores] of Object.entries(branchScoreGroups)) {
     if (scores.length === 0) continue;
     const total = scores.reduce((sum, score) => sum + score, 0);
     branchAverageMap[branchKey] = total / scores.length;
   }
-
-  // ============================================================
-  // 7. Calculate Risk
-  // ============================================================
 
   const riskMembers = [];
 
@@ -864,35 +769,12 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
       excusedCount,
     } = data;
 
-    // ==========================================================
-    // Attendance Risk
-    //
-    // < 2    => 0
-    // 2-2.9  => 10
-    // 3-3.9  => 25
-    // 4-4.9  => 40
-    // 5-5.9  => 55
-    // >= 6   => 65
-    // ==========================================================
-
     let attendanceRisk = 0;
     if (attendanceEquivalent >= 6)      attendanceRisk = 65;
     else if (attendanceEquivalent >= 5) attendanceRisk = 55;
     else if (attendanceEquivalent >= 4) attendanceRisk = 40;
     else if (attendanceEquivalent >= 3) attendanceRisk = 25;
     else if (attendanceEquivalent >= 2) attendanceRisk = 10;
-
-    // ==========================================================
-    // Grade Risk
-    //
-    // So sánh với average của CHÍNH NGÀNH tại thời điểm chốt quý.
-    //
-    // Difference:
-    // < 0.5      => 0
-    // 0.5 - <1   => 10
-    // 1 - <1.5   => 20
-    // >= 1.5     => 30
-    // ==========================================================
 
     let gradeRisk = 0;
     let branchAverageGrade = null;
@@ -910,29 +792,12 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
       }
     }
 
-    // ==========================================================
-    // 8. Total Risk Score
-    // ==========================================================
-
     const riskScore = Math.min(100, attendanceRisk + gradeRisk);
-
-    // ==========================================================
-    // 9. Only return members who actually have concern
-    // Score < 30 => not considered a risk member
-    // ==========================================================
 
     if (riskScore < 30) continue;
 
-    // ==========================================================
-    // 10. Risk Level
-    // ==========================================================
-
     let riskLevel = "medium";
     if (riskScore >= 60) riskLevel = "high";
-
-    // ==========================================================
-    // 11. Risk Reasons
-    // ==========================================================
 
     const reasons = [];
 
@@ -948,27 +813,20 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
       );
     }
 
-    // ==========================================================
-    // 12. Return Risk Member
-    // ==========================================================
-
     riskMembers.push({
       id: member.id,
       fullName: member.name,
       parish: member.parish || "",
       branch: getDisplayBranchName(branchKey || "Chưa phân ngành"),
 
-      // Risk
       riskScore,
       riskLevel,
 
-      // Attendance
       absentCount,
       lateCount,
       excusedCount,
       attendanceEquivalent: Number(attendanceEquivalent.toFixed(1)),
 
-      // Grade
       averageGrade:       averageGrade !== null       ? Number(averageGrade.toFixed(1))       : null,
       branchAverageGrade: branchAverageGrade !== null ? Number(branchAverageGrade.toFixed(1)) : null,
       gradeDifference:    gradeDifference !== null    ? Number(gradeDifference.toFixed(1))    : null,
@@ -977,10 +835,6 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
       reasons,
     });
   }
-
-  // ============================================================
-  // 13. Highest risk first
-  // ============================================================
 
   riskMembers.sort((a, b) => b.riskScore - a.riskScore);
 

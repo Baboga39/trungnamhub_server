@@ -255,16 +255,18 @@ const BRANCH_LIST = [
  * Trả về ngành của member tại một ngày cụ thể.
  *
  * Logic:
- * 1. Tìm record BRANCH_PROMOTED gần nhất có date <= targetDate.
- * 2. Nếu tìm thấy và có toBranch → return toBranch.
- * 3. Nếu không có lịch sử → return member.branch (ngành hiện tại).
+ * 1. Tìm đợt BRANCH_PROMOTED gần nhất TRƯỚC HOẶC BẰNG targetDate.
+ *    Nếu có -> return toBranch của đợt đó.
+ * 2. Nếu KHÔNG CÓ đợt lên ngành nào trước targetDate:
+ *    Tìm đợt BRANCH_PROMOTED SỚM NHẤT SAU targetDate.
+ *    fromBranch của đợt lên ngành đó chính là ngành của member TRƯỚC khi lên ngành!
+ * 3. Nếu member chưa từng lên ngành -> return member.branch (ngành hiện tại).
  *
  * @param {number} memberId
  * @param {Date}   targetDate
  * @returns {Promise<string|null>} tên ngành
  */
 async function getMemberBranchAtDate(memberId, targetDate) {
-  // Lấy ngành hiện tại làm fallback
   const member = await prisma.member.findUnique({
     where: { id: memberId },
     select: { branch: true },
@@ -272,8 +274,8 @@ async function getMemberBranchAtDate(memberId, targetDate) {
 
   if (!member) return null;
 
-  // Tìm record BRANCH_PROMOTED gần nhất trước hoặc bằng targetDate
-  const historyRecord = await prisma.memberStatusHistory.findFirst({
+  // 1. Tìm đợt BRANCH_PROMOTED gần nhất TRƯỚC HOẶC BẰNG targetDate
+  const pastPromotion = await prisma.memberStatusHistory.findFirst({
     where: {
       memberId,
       type: "BRANCH_PROMOTED",
@@ -282,11 +284,33 @@ async function getMemberBranchAtDate(memberId, targetDate) {
     orderBy: { date: "desc" },
   });
 
-  if (historyRecord && historyRecord.toBranch) {
-    return historyRecord.toBranch;
+  if (pastPromotion && pastPromotion.toBranch) {
+    return pastPromotion.toBranch;
   }
 
-  // Fallback: không có lịch sử hoặc record cũ không có toBranch
+  // 2. Tìm đợt BRANCH_PROMOTED SỚM NHẤT SAU targetDate
+  const futurePromotion = await prisma.memberStatusHistory.findFirst({
+    where: {
+      memberId,
+      type: "BRANCH_PROMOTED",
+      date: { gt: targetDate },
+    },
+    orderBy: { date: "asc" },
+  });
+
+  if (futurePromotion) {
+    if (futurePromotion.fromBranch) {
+      return futurePromotion.fromBranch;
+    }
+    // Fallback nếu đợt lên ngành cũ chưa có fromBranch:
+    if (futurePromotion.toBranch) {
+      const toNorm = futurePromotion.toBranch.replace("Ngành ", "").trim();
+      if (toNorm === "Thanh") return "Thiếu";
+      if (toNorm === "Thiếu") return "Đồng";
+    }
+  }
+
+  // 3. Fallback: dùng ngành hiện tại trong DB
   return member.branch;
 }
 
