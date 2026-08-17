@@ -23,4 +23,6 @@ router.get(
 router.post("/score/upsert", middlewares.auth,
   middlewares.validation(upsertGradeSchema), gradeController.upSertScore);
 
+router.post("/score/delete", middlewares.auth, gradeController.deleteScore);
+
 module.exports = router;

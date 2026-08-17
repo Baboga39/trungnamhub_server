@@ -46,25 +46,27 @@ async function markAttendance(user, recordsByDate) {
     const parsedDate = parseValidDate(dateKey);
     if (!parsedDate) continue;
 
+    const safeMembers = members && typeof members === "object" ? members : {};
+
     // Get all member IDs
-    const memberIds = Object.keys(members)
+    const memberIds = Object.keys(safeMembers)
       .map(Number)
       .filter(Boolean);
 
-    if (memberIds.length === 0) continue;
-
-    // Get members + their branch
-    const memberList = await prisma.member.findMany({
-      where: {
-        id: {
-          in: memberIds,
+    let memberList = [];
+    if (memberIds.length > 0) {
+      memberList = await prisma.member.findMany({
+        where: {
+          id: {
+            in: memberIds,
+          },
         },
-      },
-      select: {
-        id: true,
-        branch: true,
-      },
-    });
+        select: {
+          id: true,
+          branch: true,
+        },
+      });
+    }
 
     // Convert to Map for quick lookup
     const memberMap = new Map(
@@ -88,7 +90,7 @@ async function markAttendance(user, recordsByDate) {
       detectedBranch
     );
 
-    for (const [memberIdStr, record] of Object.entries(members)) {
+    for (const [memberIdStr, record] of Object.entries(safeMembers)) {
       const memberId = Number(memberIdStr);
 
       if (!memberId || !record || typeof record !== "object") {

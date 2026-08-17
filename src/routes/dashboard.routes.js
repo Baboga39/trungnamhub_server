@@ -21,4 +21,12 @@ router.get("/executive/attendance-trend", middlewares.auth, executiveDashboardCo
 router.get("/executive/activities", middlewares.auth, executiveDashboardController.getActivities);
 router.get("/executive/risks", middlewares.auth, executiveDashboardController.getRisks);
 
+// Public Executive Dashboard Endpoints (No Auth required for public viewers)
+router.get("/executive/public/overview", executiveDashboardController.getPublicOverview);
+router.get("/executive/public/branches", executiveDashboardController.getPublicBranchPerformance);
+router.get("/executive/public/top-members", executiveDashboardController.getPublicTopMembers);
+router.get("/executive/public/attendance-trend", executiveDashboardController.getPublicAttendanceTrend);
+router.get("/executive/public/activities", executiveDashboardController.getPublicActivities);
+router.get("/executive/public/risks", executiveDashboardController.getPublicRisks);
+
 module.exports = router;

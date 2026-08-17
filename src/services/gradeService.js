@@ -487,12 +487,29 @@ async function getGradeTrendTimeline(user) {
   });
 }
 
+async function deleteScore({ memberId, year, quarter }) {
+  if (!memberId || !year || !quarter) {
+    throw { statusCode: 400, message: "Missing memberId, year, or quarter" };
+  }
+
+  const result = await prisma.grade.deleteMany({
+    where: {
+      memberId: Number(memberId),
+      year: Number(year),
+      quarter: Number(quarter),
+    },
+  });
+
+  return result;
+}
+
 module.exports = {
   getAllGrades,
   upSertGradeCategory,
   softDeleteGradeCategory,
   getAllGradeCategory,
   upSertScore,
+  deleteScore,
   updateAttendanceScore,
   getTop3MembersByScoreThisYear,
   getRankingThisYear,

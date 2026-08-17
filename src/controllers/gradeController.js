@@ -49,10 +49,21 @@ async function upSertScore(req, res, next) {
   }
 }
 
+async function deleteScore(req, res, next) {
+  try {
+    const { memberId, year, quarter } = req.body;
+    const result = await service.gradeService.deleteScore({ memberId, year, quarter });
+    res.ok(result, "Deleted score successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   getAllGrades,
   softDeleteGradeCategory,
   upSertGradeCategory,
   getAllGradeCategory,
-  upSertScore
+  upSertScore,
+  deleteScore,
 };

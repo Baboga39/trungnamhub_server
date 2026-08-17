@@ -46,7 +46,7 @@ function getQuarterDateRanges(year, quarter) {
 }
 
 function isAdminUser(user) {
-  if (!user) return false;
+  if (!user) return true;
   const role = String(user.role || "").toLowerCase();
   const branchStr = String(user.branch || "").toLowerCase();
   return role === "admin" || branchStr === "admin";
@@ -503,6 +503,7 @@ async function getExecutiveTopMembers(
       branch: getDisplayBranchName(effectiveBranch),
       totalScore,
       score: totalScore,
+      overallScore: totalScore,
       attendanceRate,
       activityRate,
       rankText: getRank(totalScore),
@@ -511,17 +512,50 @@ async function getExecutiveTopMembers(
 
   let memberList = (await Promise.all(memberDataPromises)).filter(Boolean);
 
-  memberList.sort((a, b) => {
-    if (sortBy === "attendance") {
-      return b.attendanceRate - a.attendanceRate;
+  const getSortVal = (m) => {
+    if (sortBy === "attendance") return m.attendanceRate || 0;
+    if (sortBy === "activity") return m.activityRate || 0;
+    return m.totalScore || 0;
+  };
+
+  const sortFn = (a, b) => getSortVal(b) - getSortVal(a);
+
+  // ✅ Khi xem TẤT CẢ các ngành (Admin hoặc không chọn lọc ngành cụ thể):
+  // Nhóm theo từng Ngành (Đồng, Thiếu, Thanh...), lấy TOP 50% xuất sắc nhất mỗi Ngành (hơn 1 nửa).
+  // ĐẶC BIỆT: Nếu có nhiều bạn ĐỒNG ĐIỂM với vị trí mốc cắt (cutoff), lấy TẤT CẢ các bạn bằng điểm đó.
+  if (!requestedNormBranch) {
+    const branchGroups = {};
+    for (const m of memberList) {
+      const bKey = m.branch || "Khác";
+      if (!branchGroups[bKey]) branchGroups[bKey] = [];
+      branchGroups[bKey].push(m);
     }
 
-    if (sortBy === "activity") {
-      return b.activityRate - a.activityRate;
+    let topHalfCombined = [];
+    for (const bKey in branchGroups) {
+      const group = branchGroups[bKey];
+      group.sort(sortFn);
+
+      if (group.length > 0) {
+        // Lấy mốc 50% số lượng (làm tròn lên)
+        const halfCount = Math.ceil(group.length / 2);
+        // Lấy giá trị tại mốc cắt (cutoff value)
+        const cutoffMember = group[Math.min(halfCount - 1, group.length - 1)];
+        const cutoffVal = getSortVal(cutoffMember);
+
+        // Lấy tất cả các bạn có giá trị >= mốc cutoff (lấy cả các bạn bằng điểm mốc)
+        const topOfBranch = group.filter((m) => getSortVal(m) >= cutoffVal);
+        topHalfCombined.push(...topOfBranch);
+      }
     }
 
-    return b.totalScore - a.totalScore;
-  });
+    // Sắp xếp tổng thể danh sách kết hợp theo tiêu chí sortBy
+    topHalfCombined.sort(sortFn);
+    memberList = topHalfCombined;
+  } else {
+    // Nếu chọn 1 ngành cụ thể
+    memberList.sort(sortFn);
+  }
 
   const medals = ["🥇", "🥈", "🥉"];
 
@@ -610,30 +644,63 @@ async function getExecutiveAttendanceTrend(user, { year, quarter, branch }) {
 async function getExecutiveActivities(user, { year, quarter, branch }) {
   const dateRange = getQuarterDateRanges(year, quarter);
   const branchFilter = getEffectiveBranchFilter(user, branch);
+  const requestedNormBranch = branchFilter.branch ? normalizeDbBranch(branchFilter.branch) : null;
 
   const activities = await prisma.activity.findMany({
     where: { year: dateRange.year, quarter: dateRange.quarter },
     include: {
       attendances: {
-        where: { member: { active: true, ...branchFilter } },
+        where: { member: { active: true } },
         include: { member: true },
       },
     },
     orderBy: { date: "asc" },
   });
 
-  const totalMembers = await prisma.member.count({
-    where: { active: true, ...branchFilter },
+  const allActiveMembers = await prisma.member.findMany({
+    where: { active: true },
   });
 
+  // Tính Ngành lịch sử tại thời điểm chốt Quý cho từng Đoàn sinh
+  const memberBranchMap = new Map();
+  await Promise.all(
+    allActiveMembers.map(async (m) => {
+      const hBranch = await getMemberBranchAtQuarterEnd(m.id, dateRange.year, dateRange.quarter);
+      const effectiveBranch = hBranch || m.branch || "";
+      memberBranchMap.set(m.id, normalizeDbBranch(effectiveBranch));
+    })
+  );
+
+  // Lọc tập Đoàn sinh thuộc phạm vi xem (Admin = Tất cả 3 ngành, hoặc Ngành cụ thể)
+  const validMemberIds = new Set();
+  allActiveMembers.forEach((m) => {
+    const normB = memberBranchMap.get(m.id);
+    if (!requestedNormBranch || normB === requestedNormBranch) {
+      validMemberIds.add(m.id);
+    }
+  });
+
+  const totalMembers = validMemberIds.size;
+
   return activities.map((act) => {
-    const joinedCount = act.attendances.length;
+    const validAttendances = act.attendances.filter((att) => validMemberIds.has(att.memberId));
+    const joinedCount = validAttendances.length;
     const rate = totalMembers > 0 ? Number(((joinedCount / totalMembers) * 100).toFixed(1)) : 0;
+
+    let formattedDate = "";
+    if (act.date) {
+      const d = new Date(act.date);
+      const day = String(d.getDate()).padStart(2, "0");
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const yyyy = d.getFullYear();
+      formattedDate = `${day}/${month}/${yyyy}`;
+    }
 
     return {
       id: act.id,
       name: act.name,
-      date: act.date,
+      date: formattedDate || act.date,
+      rawDate: act.date,
       joinedCount,
       totalMembers,
       participationRate: rate,
