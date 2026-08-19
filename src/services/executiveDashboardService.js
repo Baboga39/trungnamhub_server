@@ -1,8 +1,31 @@
 // src/services/executiveDashboardService.js
 const prisma = require("../libs/prisma");
 const { calculateTotalScoreDynamic, getRank } = require("../libs/scoreCalculator");
-const { buildBranchFilter, getMemberBranchAtQuarterEnd } = require("./member.service");
+const { buildBranchFilter } = require("./member.service");
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CONSTANTS & CONFIGURATION
+// ─────────────────────────────────────────────────────────────────────────────
+const DB_BRANCHES = ["Thanh", "Thiếu", "Đồng"];
+const BRANCH_LEVEL_MAP = { Thanh: 3, Thiếu: 2, Đồng: 1 };
+const MEDALS = ["🥇", "🥈", "🥉"];
+
+const ATTENDANCE_EQUIVALENTS = {
+  absent: 1.0,
+  late: 0.5,
+  excused: 0.2,
+};
+
+const HEALTH_SCORE_WEIGHTS = {
+  attendance: 0.35,
+  score: 0.30,
+  activity: 0.20,
+  risk: 0.15,
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPER FUNCTIONS & UTILITIES
+// ─────────────────────────────────────────────────────────────────────────────
 
 function normalizeDbBranch(branchStr) {
   if (!branchStr || branchStr === "all") return null;
@@ -21,7 +44,7 @@ function getDisplayBranchName(branchStr) {
 
 function getQuarterDateRanges(year, quarter) {
   const y = Number(year) || new Date().getFullYear();
-  const q = Number(quarter) || (Math.floor(new Date().getMonth() / 3) + 1);
+  const q = Number(quarter) || Math.floor(new Date().getMonth() / 3) + 1;
 
   const startMonth = (q - 1) * 3;
   const startDate = new Date(y, startMonth, 1, 0, 0, 0);
@@ -76,6 +99,129 @@ function calcTrendPercent(current, previous) {
   return Number((((current - previous) / previous) * 100).toFixed(1));
 }
 
+/**
+ * Calculates absent equivalent weight: absent=1, late=0.5, excused=0.2
+ */
+function calcAbsentEquivalent(attendances) {
+  if (!attendances || !attendances.length) return 0;
+  return attendances.reduce((acc, a) => {
+    const status = typeof a === "string" ? a : a?.status;
+    return acc + (ATTENDANCE_EQUIVALENTS[status] || 0);
+  }, 0);
+}
+
+/**
+ * Fetches sessions for a date range with fallback to distinct attendance dates if no sessions exist.
+ */
+async function getEffectiveQuarterSessions(startDate, endDate, branch = null) {
+  const sessionWhere = {
+    date: { gte: startDate, lte: endDate },
+  };
+  if (branch) {
+    sessionWhere.branch = branch;
+  }
+
+  let sessions = await prisma.session.findMany({
+    where: sessionWhere,
+    select: { id: true, date: true, branch: true },
+    orderBy: { date: "asc" },
+  });
+
+  if (sessions.length === 0) {
+    const attWhere = {
+      date: { gte: startDate, lte: endDate },
+    };
+    if (branch) {
+      attWhere.member = { branch };
+    }
+
+    const distinctAtts = await prisma.attendance.findMany({
+      where: attWhere,
+      select: { date: true },
+      distinct: ["date"],
+      orderBy: { date: "asc" },
+    });
+
+    sessions = distinctAtts.map((a, idx) => ({ id: idx + 1, date: a.date, branch }));
+  }
+
+  return sessions;
+}
+
+/**
+ * Batch resolves historical branch at quarter end for an array of members in a SINGLE query.
+ * Eliminates N+1 query problem.
+ *
+ * @param {Array<{ id: number, branch: string }>} members
+ * @param {number} year
+ * @param {number} quarter
+ * @returns {Promise<Map<number, string>>} Map of memberId -> normalized branch ("Thanh", "Thiếu", "Đồng", ...)
+ */
+async function batchGetMemberBranchAtQuarterEnd(members, year, quarter) {
+  if (!members || members.length === 0) return new Map();
+
+  const startMonth = (quarter - 1) * 3;
+  const quarterEndDate = new Date(year, startMonth + 3, 0, 23, 59, 59);
+  const memberIds = members.map((m) => m.id);
+
+  // Single batch query: find all promotions after quarterEndDate
+  const futurePromotions = await prisma.memberStatusHistory.findMany({
+    where: {
+      memberId: { in: memberIds },
+      type: "BRANCH_PROMOTED",
+      date: { gt: quarterEndDate },
+    },
+    orderBy: { date: "asc" },
+  });
+
+  // Pick the earliest promotion after quarterEndDate per member
+  const earliestPromotionMap = new Map();
+  for (const p of futurePromotions) {
+    if (!earliestPromotionMap.has(p.memberId)) {
+      earliestPromotionMap.set(p.memberId, p);
+    }
+  }
+
+  const resultMap = new Map();
+  for (const m of members) {
+    const p = earliestPromotionMap.get(m.id);
+    let histBranch = m.branch;
+    if (p) {
+      if (p.fromBranch) {
+        histBranch = p.fromBranch;
+      } else if (p.toBranch) {
+        const toNorm = p.toBranch.replace("Ngành ", "").trim();
+        if (toNorm === "Thanh") histBranch = "Thiếu";
+        else if (toNorm === "Thiếu") histBranch = "Đồng";
+      }
+    }
+    const norm = normalizeDbBranch(histBranch) || "Chưa phân ngành";
+    resultMap.set(m.id, norm);
+  }
+
+  return resultMap;
+}
+
+/**
+ * Builds member scores map and calculates dynamic total scores.
+ */
+function buildMemberScoresMap(grades, categories) {
+  const memberScoresMap = {};
+  for (const g of grades) {
+    if (!memberScoresMap[g.memberId]) memberScoresMap[g.memberId] = {};
+    if (g.category && g.category.name) {
+      memberScoresMap[g.memberId][g.category.name] = g.score;
+    }
+  }
+
+  const memberTotalScoreMap = {};
+  for (const [memberId, scores] of Object.entries(memberScoresMap)) {
+    memberTotalScoreMap[memberId] = calculateTotalScoreDynamic(scores, categories);
+  }
+
+  return { memberScoresMap, memberTotalScoreMap };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. OVERVIEW KPIS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -97,11 +243,19 @@ async function getExecutiveOverview(user, { year, quarter, branch }) {
     categories,
     activities,
     prevActivities,
+    totalQuarterActivities,
+    prevTotalQuarterActivities,
   ] = await Promise.all([
     prisma.member.count({ where: { active: true, ...branchFilter } }),
-    prisma.member.count({ where: { active: true, ...branchFilter } }),
+    // Historical member count prior to prev quarter end
+    prisma.member.count({
+      where: {
+        createdAt: { lte: prevEndDate },
+        ...branchFilter,
+      },
+    }),
 
-    // Attendance records in quarter
+    // Attendance records in current quarter
     prisma.attendance.findMany({
       where: {
         date: { gte: startDate, lte: endDate },
@@ -109,6 +263,7 @@ async function getExecutiveOverview(user, { year, quarter, branch }) {
       },
       select: { status: true, memberId: true },
     }),
+    // Attendance records in previous quarter
     prisma.attendance.findMany({
       where: {
         date: { gte: prevStartDate, lte: prevEndDate },
@@ -117,25 +272,9 @@ async function getExecutiveOverview(user, { year, quarter, branch }) {
       select: { status: true, memberId: true },
     }),
 
-    // Session counts
-    branchFilter.branch
-      ? prisma.session.findMany({
-          where: { branch: branchFilter.branch, date: { gte: startDate, lte: endDate } },
-          select: { id: true },
-        })
-      : prisma.session.findMany({
-          where: { date: { gte: startDate, lte: endDate } },
-          select: { id: true },
-        }),
-    branchFilter.branch
-      ? prisma.session.findMany({
-          where: { branch: branchFilter.branch, date: { gte: prevStartDate, lte: prevEndDate } },
-          select: { id: true },
-        })
-      : prisma.session.findMany({
-          where: { date: { gte: prevStartDate, lte: prevEndDate } },
-          select: { id: true },
-        }),
+    // Sessions count
+    getEffectiveQuarterSessions(startDate, endDate, branchFilter.branch),
+    getEffectiveQuarterSessions(prevStartDate, prevEndDate, branchFilter.branch),
 
     // Grades
     prisma.grade.findMany({
@@ -170,6 +309,13 @@ async function getExecutiveOverview(user, { year, quarter, branch }) {
         member: { active: true, ...branchFilter },
       },
     }),
+
+    prisma.activity.count({
+      where: { year: dateRange.year, quarter: dateRange.quarter },
+    }),
+    prisma.activity.count({
+      where: { year: dateRange.prevYear, quarter: dateRange.prevQuarter },
+    }),
   ]);
 
   // Attendance rate calculation
@@ -179,57 +325,51 @@ async function getExecutiveOverview(user, { year, quarter, branch }) {
   const totalPotentialVisits = totalMembers * totalSessionsCount;
   const prevTotalPotentialVisits = prevTotalMembers * prevTotalSessionsCount;
 
-  const absentEq = attendances.reduce((acc, a) => {
-    if (a.status === "absent") return acc + 1;
-    if (a.status === "late") return acc + 0.5;
-    if (a.status === "excused") return acc + 0.2;
-    return acc;
-  }, 0);
-
-  const prevAbsentEq = prevAttendances.reduce((acc, a) => {
-    if (a.status === "absent") return acc + 1;
-    if (a.status === "late") return acc + 0.5;
-    if (a.status === "excused") return acc + 0.2;
-    return acc;
-  }, 0);
+  const absentEq = calcAbsentEquivalent(attendances);
+  const prevAbsentEq = calcAbsentEquivalent(prevAttendances);
 
   const presentEq = Math.max(0, totalPotentialVisits - absentEq);
   const prevPresentEq = Math.max(0, prevTotalPotentialVisits - prevAbsentEq);
 
-  const attendanceRate = totalPotentialVisits > 0 ? Number(((presentEq / totalPotentialVisits) * 100).toFixed(1)) : 0;
-  const prevAttendanceRate = prevTotalPotentialVisits > 0 ? Number(((prevPresentEq / prevTotalPotentialVisits) * 100).toFixed(1)) : 0;
+  const attendanceRate =
+    totalPotentialVisits > 0 ? Number(((presentEq / totalPotentialVisits) * 100).toFixed(1)) : 0;
+  const prevAttendanceRate =
+    prevTotalPotentialVisits > 0
+      ? Number(((prevPresentEq / prevTotalPotentialVisits) * 100).toFixed(1))
+      : 0;
 
   // Average Score calculation
-  const memberScoresMap = {};
-  for (const g of grades) {
-    if (!memberScoresMap[g.memberId]) memberScoresMap[g.memberId] = {};
-    memberScoresMap[g.memberId][g.category.name] = g.score;
-  }
-  const scoreValues = Object.values(memberScoresMap).map((scores) => calculateTotalScoreDynamic(scores, categories));
-  const avgScore = scoreValues.length > 0 ? Number((scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length).toFixed(1)) : 0;
+  const { memberTotalScoreMap } = buildMemberScoresMap(grades, categories);
+  const scoreValues = Object.values(memberTotalScoreMap);
+  const avgScore =
+    scoreValues.length > 0
+      ? Number((scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length).toFixed(1))
+      : 0;
 
-  const prevMemberScoresMap = {};
-  for (const g of prevGrades) {
-    if (!prevMemberScoresMap[g.memberId]) prevMemberScoresMap[g.memberId] = {};
-    prevMemberScoresMap[g.memberId][g.category.name] = g.score;
-  }
-  const prevScoreValues = Object.values(prevMemberScoresMap).map((scores) => calculateTotalScoreDynamic(scores, categories));
-  const prevAvgScore = prevScoreValues.length > 0 ? Number((prevScoreValues.reduce((a, b) => a + b, 0) / prevScoreValues.length).toFixed(1)) : 0;
+  const { memberTotalScoreMap: prevMemberTotalScoreMap } = buildMemberScoresMap(
+    prevGrades,
+    categories
+  );
+  const prevScoreValues = Object.values(prevMemberTotalScoreMap);
+  const prevAvgScore =
+    prevScoreValues.length > 0
+      ? Number((prevScoreValues.reduce((a, b) => a + b, 0) / prevScoreValues.length).toFixed(1))
+      : 0;
 
   // Activity participation rate
-  const totalQuarterActivities = await prisma.activity.count({
-    where: { year: dateRange.year, quarter: dateRange.quarter },
-  });
   const maxPossibleActivityJoins = totalMembers * (totalQuarterActivities || 1);
   const joinedActivityCount = activities.length;
-  const activityRate = maxPossibleActivityJoins > 0 ? Number(((joinedActivityCount / maxPossibleActivityJoins) * 100).toFixed(1)) : 0;
+  const activityRate =
+    maxPossibleActivityJoins > 0
+      ? Number(((joinedActivityCount / maxPossibleActivityJoins) * 100).toFixed(1))
+      : 0;
 
-  const prevTotalQuarterActivities = await prisma.activity.count({
-    where: { year: dateRange.prevYear, quarter: dateRange.prevQuarter },
-  });
   const prevMaxPossibleActivityJoins = prevTotalMembers * (prevTotalQuarterActivities || 1);
   const prevJoinedActivityCount = prevActivities.length;
-  const prevActivityRate = prevMaxPossibleActivityJoins > 0 ? Number(((prevJoinedActivityCount / prevMaxPossibleActivityJoins) * 100).toFixed(1)) : 0;
+  const prevActivityRate =
+    prevMaxPossibleActivityJoins > 0
+      ? Number(((prevJoinedActivityCount / prevMaxPossibleActivityJoins) * 100).toFixed(1))
+      : 0;
 
   // Risk Members Count
   const riskList = await getExecutiveRiskMembers(user, { year, quarter, branch });
@@ -270,29 +410,30 @@ async function getExecutiveOverview(user, { year, quarter, branch }) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function getExecutiveBranchPerformance(user, { year, quarter }) {
   const dateRange = getQuarterDateRanges(year, quarter);
-  // Database branch values
-  const dbBranches = ["Thanh", "Thiếu", "Đồng"];
 
-  const categories = await prisma.gradeCategory.findMany({ where: { active: true } });
-  const totalQuarterActivities = await prisma.activity.count({
-    where: { year: dateRange.year, quarter: dateRange.quarter },
-  });
+  const [categories, totalQuarterActivities, allActiveMembers] = await Promise.all([
+    prisma.gradeCategory.findMany({ where: { active: true } }),
+    prisma.activity.count({
+      where: { year: dateRange.year, quarter: dateRange.quarter },
+    }),
+    prisma.member.findMany({ where: { active: true } }),
+  ]);
 
-  const allActiveMembers = await prisma.member.findMany({ where: { active: true } });
+  // Batch resolve historical branch at quarter end (1 query instead of N queries)
+  const memberBranchMap = await batchGetMemberBranchAtQuarterEnd(
+    allActiveMembers,
+    dateRange.year,
+    dateRange.quarter
+  );
 
-  // Resolve historical branch at quarter end for all members
-  const memberBranchMap = {};
-  for (const m of allActiveMembers) {
-    const histBranch = await getMemberBranchAtQuarterEnd(m.id, dateRange.year, dateRange.quarter);
-    memberBranchMap[m.id] = normalizeDbBranch(histBranch || m.branch) || "Chưa phân ngành";
-  }
-
-  const branchDataPromises = dbBranches.map(async (rawBranch) => {
-    const branchMembers = allActiveMembers.filter((m) => memberBranchMap[m.id] === rawBranch);
+  const branchDataPromises = DB_BRANCHES.map(async (rawBranch) => {
+    const branchMembers = allActiveMembers.filter(
+      (m) => memberBranchMap.get(m.id) === rawBranch
+    );
     const memberIds = branchMembers.map((m) => m.id);
 
     const [sessions, attendances, grades, activities] = await Promise.all([
-      prisma.session.findMany({ where: { branch: rawBranch, date: { gte: dateRange.startDate, lte: dateRange.endDate } } }),
+      getEffectiveQuarterSessions(dateRange.startDate, dateRange.endDate, rawBranch),
       prisma.attendance.findMany({
         where: {
           date: { gte: dateRange.startDate, lte: dateRange.endDate },
@@ -319,24 +460,20 @@ async function getExecutiveBranchPerformance(user, { year, quarter }) {
     const totalSessions = sessions.length || 1;
     const totalPotentialVisits = totalMembers * totalSessions;
 
-    const absentEq = attendances.reduce((acc, a) => {
-      if (a.status === "absent") return acc + 1;
-      if (a.status === "late") return acc + 0.5;
-      if (a.status === "excused") return acc + 0.2;
-      return acc;
-    }, 0);
-
+    const absentEq = calcAbsentEquivalent(attendances);
     const presentEq = Math.max(0, totalPotentialVisits - absentEq);
-    const attendanceRate = totalPotentialVisits > 0 ? Number(((presentEq / totalPotentialVisits) * 100).toFixed(1)) : 0;
+    const attendanceRate =
+      totalPotentialVisits > 0
+        ? Number(((presentEq / totalPotentialVisits) * 100).toFixed(1))
+        : 0;
 
     // Average Score
-    const memberScoresMap = {};
-    for (const g of grades) {
-      if (!memberScoresMap[g.memberId]) memberScoresMap[g.memberId] = {};
-      memberScoresMap[g.memberId][g.category.name] = g.score;
-    }
-    const scoreValues = Object.values(memberScoresMap).map((scores) => calculateTotalScoreDynamic(scores, categories));
-    const averageScore = scoreValues.length > 0 ? Number((scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length).toFixed(1)) : 0;
+    const { memberTotalScoreMap } = buildMemberScoresMap(grades, categories);
+    const scoreValues = Object.values(memberTotalScoreMap);
+    const averageScore =
+      scoreValues.length > 0
+        ? Number((scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length).toFixed(1))
+        : 0;
 
     // Activity Rate
     const maxJoins = totalMembers * (totalQuarterActivities || 1);
@@ -345,23 +482,30 @@ async function getExecutiveBranchPerformance(user, { year, quarter }) {
 
     // Risk members for branch
     const riskMembers = branchMembers.filter((m) => {
-      const mAtts = attendances.filter((a) => a.memberId === m.id && (a.status === "absent" || a.status === "late"));
-      const mGrades = memberScoresMap[m.id];
-      const mAvgScore = mGrades ? calculateTotalScoreDynamic(mGrades, categories) : null;
+      const mAtts = attendances.filter(
+        (a) => a.memberId === m.id && (a.status === "absent" || a.status === "late")
+      );
+      const mAvgScore = memberTotalScoreMap[m.id] ?? null;
       return mAtts.length >= 3 || (mAvgScore !== null && mAvgScore < 6.5);
     }).length;
 
     // Branch Health Score calculation
     const scoreScaled = (averageScore / 10) * 100;
-    const riskFactor = Math.max(0, 100 - (totalMembers > 0 ? (riskMembers / totalMembers) * 100 * 3 : 0));
-    const healthScore = Math.round(attendanceRate * 0.35 + scoreScaled * 0.3 + activityRate * 0.2 + riskFactor * 0.15);
-
-    const levelMap = { Thanh: 3, Thiếu: 2, Đồng: 1 };
+    const riskFactor = Math.max(
+      0,
+      100 - (totalMembers > 0 ? (riskMembers / totalMembers) * 100 * 3 : 0)
+    );
+    const healthScore = Math.round(
+      attendanceRate * HEALTH_SCORE_WEIGHTS.attendance +
+        scoreScaled * HEALTH_SCORE_WEIGHTS.score +
+        activityRate * HEALTH_SCORE_WEIGHTS.activity +
+        riskFactor * HEALTH_SCORE_WEIGHTS.risk
+    );
 
     return {
       rawBranch,
       branchName: getDisplayBranchName(rawBranch),
-      level: levelMap[rawBranch] || 1,
+      level: BRANCH_LEVEL_MAP[rawBranch] || 1,
       totalMembers,
       attendanceRate,
       averageScore,
@@ -372,14 +516,12 @@ async function getExecutiveBranchPerformance(user, { year, quarter }) {
   });
 
   const branchResults = await Promise.all(branchDataPromises);
-
   branchResults.sort((a, b) => b.healthScore - a.healthScore);
-  const medals = ["🥇", "🥈", "🥉"];
 
   return branchResults.map((item, index) => ({
     ...item,
     rank: index + 1,
-    medal: medals[index] || "",
+    medal: MEDALS[index] || "",
   }));
 }
 
@@ -393,110 +535,94 @@ async function getExecutiveTopMembers(
   const dateRange = getQuarterDateRanges(year, quarter);
   const branchFilter = getEffectiveBranchFilter(user, branch);
 
-  // Fetch active members without strict SQL branch filter so historical branch matches are caught
-  const members = await prisma.member.findMany({
-    where: {
-      active: true,
-    },
-    include: {
-      attendances: {
-        where: {
-          date: {
-            gte: dateRange.startDate,
-            lte: dateRange.endDate,
+  const [members, categories, sessions, totalQuarterActivities] = await Promise.all([
+    prisma.member.findMany({
+      where: { active: true },
+      include: {
+        attendances: {
+          where: {
+            date: {
+              gte: dateRange.startDate,
+              lte: dateRange.endDate,
+            },
           },
         },
-      },
-      grades: {
-        where: {
-          year: dateRange.year,
-          quarter: dateRange.quarter,
-        },
-        include: {
-          category: true,
-        },
-      },
-      activityAttendances: {
-        where: {
-          activity: {
+        grades: {
+          where: {
             year: dateRange.year,
             quarter: dateRange.quarter,
           },
+          include: {
+            category: true,
+          },
         },
-        include: {
-          activity: true,
+        activityAttendances: {
+          where: {
+            activity: {
+              year: dateRange.year,
+              quarter: dateRange.quarter,
+            },
+          },
+          include: {
+            activity: true,
+          },
         },
       },
-    },
-  });
-
-  const categories = await prisma.gradeCategory.findMany({
-    where: {
-      active: true,
-    },
-  });
-
-  const totalQuarterSessions = await prisma.session.count({
-    where: {
-      date: {
-        gte: dateRange.startDate,
-        lte: dateRange.endDate,
+    }),
+    prisma.gradeCategory.findMany({ where: { active: true } }),
+    getEffectiveQuarterSessions(dateRange.startDate, dateRange.endDate),
+    prisma.activity.count({
+      where: {
+        year: dateRange.year,
+        quarter: dateRange.quarter,
       },
-    },
-  });
+    }),
+  ]);
 
-  const totalQuarterActivities = await prisma.activity.count({
-    where: {
-      year: dateRange.year,
-      quarter: dateRange.quarter,
-    },
-  });
+  // Batch resolve historical branch (1 query)
+  const memberBranchMap = await batchGetMemberBranchAtQuarterEnd(
+    members,
+    dateRange.year,
+    dateRange.quarter
+  );
 
-  const requestedNormBranch = branchFilter.branch ? normalizeDbBranch(branchFilter.branch) : null;
+  const requestedNormBranch = branchFilter.branch
+    ? normalizeDbBranch(branchFilter.branch)
+    : null;
 
-  const memberDataPromises = members.map(async (m) => {
-    // ✅ QUAN TRỌNG: Lấy ngành lịch sử của Đoàn sinh tại thời điểm chốt Quý
-    const historicalBranch = await getMemberBranchAtQuarterEnd(
-      m.id,
-      dateRange.year,
-      dateRange.quarter
-    );
-    const effectiveBranch = historicalBranch || m.branch || "Chưa phân ngành";
+  const totalQuarterSessions = sessions.length || 1;
+  const mActs = totalQuarterActivities || 1;
+
+  const memberList = [];
+
+  for (const m of members) {
+    const effectiveBranch = memberBranchMap.get(m.id) || m.branch || "Chưa phân ngành";
     const normEffective = normalizeDbBranch(effectiveBranch);
 
-    // Lọc theo ngành được yêu cầu nếu có
+    // Filter by requested branch if specified
     if (requestedNormBranch && normEffective !== requestedNormBranch) {
-      return null;
+      continue;
     }
 
-    const absent = m.attendances.filter((a) => a.status === "absent").length;
-    const late = m.attendances.filter((a) => a.status === "late").length;
-    const excused = m.attendances.filter((a) => a.status === "excused").length;
-
-    const absentEq = absent * 1 + late * 0.5 + excused * 0.2;
-    const mSessions = totalQuarterSessions || 1;
-
+    const absentEq = calcAbsentEquivalent(m.attendances);
     const attendanceRate = Number(
-      (Math.max(0, (mSessions - absentEq) / mSessions) * 100).toFixed(1)
+      (Math.max(0, (totalQuarterSessions - absentEq) / totalQuarterSessions) * 100).toFixed(1)
     );
 
     const scores = {};
     for (const g of m.grades) {
-      scores[g.category.name] = g.score;
+      if (g.category && g.category.name) {
+        scores[g.category.name] = g.score;
+      }
     }
 
-    const baseScore = Number(
-      calculateTotalScoreDynamic(scores, categories).toFixed(1)
-    );
-
+    const baseScore = Number(calculateTotalScoreDynamic(scores, categories).toFixed(1));
     const joinedAct = m.activityAttendances.length;
     const activityScore = Math.min(joinedAct * 0.2, 10);
     const totalScore = Number((baseScore + activityScore).toFixed(1));
-
-    const mActs = totalQuarterActivities || 1;
     const activityRate = Number(((joinedAct / mActs) * 100).toFixed(1));
 
-    return {
+    memberList.push({
       id: m.id,
       name: m.name,
       parish: m.parish || "",
@@ -507,10 +633,8 @@ async function getExecutiveTopMembers(
       attendanceRate,
       activityRate,
       rankText: getRank(totalScore),
-    };
-  });
-
-  let memberList = (await Promise.all(memberDataPromises)).filter(Boolean);
+    });
+  }
 
   const getSortVal = (m) => {
     if (sortBy === "attendance") return m.attendanceRate || 0;
@@ -520,9 +644,9 @@ async function getExecutiveTopMembers(
 
   const sortFn = (a, b) => getSortVal(b) - getSortVal(a);
 
-  // ✅ Khi xem TẤT CẢ các ngành (Admin hoặc không chọn lọc ngành cụ thể):
-  // Nhóm theo từng Ngành (Đồng, Thiếu, Thanh...), lấy TOP 50% xuất sắc nhất mỗi Ngành (hơn 1 nửa).
-  // ĐẶC BIỆT: Nếu có nhiều bạn ĐỒNG ĐIỂM với vị trí mốc cắt (cutoff), lấy TẤT CẢ các bạn bằng điểm đó.
+  let finalMembers = [];
+
+  // When viewing ALL branches: Group by branch and take top 50% from each branch (inclusive of ties)
   if (!requestedNormBranch) {
     const branchGroups = {};
     for (const m of memberList) {
@@ -531,40 +655,34 @@ async function getExecutiveTopMembers(
       branchGroups[bKey].push(m);
     }
 
-    let topHalfCombined = [];
+    const topHalfCombined = [];
     for (const bKey in branchGroups) {
       const group = branchGroups[bKey];
       group.sort(sortFn);
 
       if (group.length > 0) {
-        // Lấy mốc 50% số lượng (làm tròn lên)
         const halfCount = Math.ceil(group.length / 2);
-        // Lấy giá trị tại mốc cắt (cutoff value)
         const cutoffMember = group[Math.min(halfCount - 1, group.length - 1)];
         const cutoffVal = getSortVal(cutoffMember);
 
-        // Lấy tất cả các bạn có giá trị >= mốc cutoff (lấy cả các bạn bằng điểm mốc)
         const topOfBranch = group.filter((m) => getSortVal(m) >= cutoffVal);
         topHalfCombined.push(...topOfBranch);
       }
     }
 
-    // Sắp xếp tổng thể danh sách kết hợp theo tiêu chí sortBy
     topHalfCombined.sort(sortFn);
-    memberList = topHalfCombined;
+    finalMembers = topHalfCombined;
   } else {
-    // Nếu chọn 1 ngành cụ thể
     memberList.sort(sortFn);
+    finalMembers = memberList;
   }
 
-  const medals = ["🥇", "🥈", "🥉"];
-
-  return memberList
+  return finalMembers
     .slice(0, Number(limit) || 100)
     .map((m, idx) => ({
       ...m,
       rank: idx + 1,
-      medal: medals[idx] || `${idx + 1}`,
+      medal: MEDALS[idx] || `${idx + 1}`,
     }));
 }
 
@@ -575,67 +693,63 @@ async function getExecutiveAttendanceTrend(user, { year, quarter, branch }) {
   const dateRange = getQuarterDateRanges(year, quarter);
   const branchFilter = getEffectiveBranchFilter(user, branch);
 
-  let sessions = await prisma.session.findMany({
-    where: { date: { gte: dateRange.startDate, lte: dateRange.endDate } },
-    orderBy: { date: "asc" },
-  });
-
-  // Fallback: If no Session records, check Attendance dates in quarter
-  if (sessions.length === 0) {
-    const distinctAtts = await prisma.attendance.findMany({
-      where: { date: { gte: dateRange.startDate, lte: dateRange.endDate } },
-      select: { date: true },
-      distinct: ["date"],
-      orderBy: { date: "asc" },
-    });
-    sessions = distinctAtts.map((a, idx) => ({ id: idx + 1, date: a.date }));
-  }
-
-  const dbBranches = ["Thanh", "Thiếu", "Đồng"];
-
-  const trendPointsPromises = sessions.map(async (s, index) => {
-    const sessionDate = s.date;
-    const label = `Buổi ${index + 1} (${sessionDate.getDate()}/${sessionDate.getMonth() + 1})`;
-
-    const allMembers = await prisma.member.findMany({
+  const [sessions, allMembers, attendances] = await Promise.all([
+    getEffectiveQuarterSessions(dateRange.startDate, dateRange.endDate, branchFilter.branch),
+    prisma.member.findMany({
       where: { active: true, ...branchFilter },
       select: { id: true, branch: true },
-    });
+    }),
+    prisma.attendance.findMany({
+      where: {
+        date: { gte: dateRange.startDate, lte: dateRange.endDate },
+        member: { active: true, ...branchFilter },
+      },
+      select: { date: true, memberId: true, status: true },
+    }),
+  ]);
 
-    const attendances = await prisma.attendance.findMany({
-      where: { date: sessionDate, member: { active: true, ...branchFilter } },
-    });
+  // Group attendances by ISO date string: Map<dateStr, Map<memberId, status>>
+  const attByDate = new Map();
+  for (const a of attendances) {
+    const dKey = a.date.toISOString().split("T")[0];
+    if (!attByDate.has(dKey)) {
+      attByDate.set(dKey, new Map());
+    }
+    attByDate.get(dKey).set(a.memberId, a.status);
+  }
 
-    const attMap = new Map(attendances.map((a) => [a.memberId, a.status]));
-
-    const calcRate = (mList) => {
-      if (mList.length === 0) return 100;
-      let absentEq = 0;
-      for (const m of mList) {
-        const st = attMap.get(m.id);
-        if (st === "absent") absentEq += 1;
-        else if (st === "late") absentEq += 0.5;
-        else if (st === "excused") absentEq += 0.2;
+  const calcRate = (mList, memberStatusMap) => {
+    if (mList.length === 0) return 100;
+    let absentEq = 0;
+    for (const m of mList) {
+      const st = memberStatusMap ? memberStatusMap.get(m.id) : null;
+      if (st) {
+        absentEq += ATTENDANCE_EQUIVALENTS[st] || 0;
       }
-      return Number(((Math.max(0, mList.length - absentEq) / mList.length) * 100).toFixed(1));
-    };
+    }
+    return Number(((Math.max(0, mList.length - absentEq) / mList.length) * 100).toFixed(1));
+  };
+
+  return sessions.map((s, index) => {
+    const sessionDate = s.date;
+    const dKey = sessionDate.toISOString().split("T")[0];
+    const memberStatusMap = attByDate.get(dKey) || new Map();
+    const label = `Buổi ${index + 1} (${sessionDate.getDate()}/${sessionDate.getMonth() + 1})`;
 
     const point = {
       date: sessionDate,
       label,
-      all: calcRate(allMembers),
+      all: calcRate(allMembers, memberStatusMap),
     };
 
-    for (const b of dbBranches) {
+    for (const b of DB_BRANCHES) {
       const bMembers = allMembers.filter((m) => m.branch === b);
       const displayKey = getDisplayBranchName(b);
-      point[displayKey] = calcRate(bMembers);
+      point[displayKey] = calcRate(bMembers, memberStatusMap);
     }
 
     return point;
   });
-
-  return Promise.all(trendPointsPromises);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -644,34 +758,31 @@ async function getExecutiveAttendanceTrend(user, { year, quarter, branch }) {
 async function getExecutiveActivities(user, { year, quarter, branch }) {
   const dateRange = getQuarterDateRanges(year, quarter);
   const branchFilter = getEffectiveBranchFilter(user, branch);
-  const requestedNormBranch = branchFilter.branch ? normalizeDbBranch(branchFilter.branch) : null;
+  const requestedNormBranch = branchFilter.branch
+    ? normalizeDbBranch(branchFilter.branch)
+    : null;
 
-  const activities = await prisma.activity.findMany({
-    where: { year: dateRange.year, quarter: dateRange.quarter },
-    include: {
-      attendances: {
-        where: { member: { active: true } },
-        include: { member: true },
+  const [activities, allActiveMembers] = await Promise.all([
+    prisma.activity.findMany({
+      where: { year: dateRange.year, quarter: dateRange.quarter },
+      include: {
+        attendances: {
+          where: { member: { active: true } },
+          include: { member: true },
+        },
       },
-    },
-    orderBy: { date: "asc" },
-  });
+      orderBy: { date: "asc" },
+    }),
+    prisma.member.findMany({ where: { active: true } }),
+  ]);
 
-  const allActiveMembers = await prisma.member.findMany({
-    where: { active: true },
-  });
-
-  // Tính Ngành lịch sử tại thời điểm chốt Quý cho từng Đoàn sinh
-  const memberBranchMap = new Map();
-  await Promise.all(
-    allActiveMembers.map(async (m) => {
-      const hBranch = await getMemberBranchAtQuarterEnd(m.id, dateRange.year, dateRange.quarter);
-      const effectiveBranch = hBranch || m.branch || "";
-      memberBranchMap.set(m.id, normalizeDbBranch(effectiveBranch));
-    })
+  // Batch resolve historical branch
+  const memberBranchMap = await batchGetMemberBranchAtQuarterEnd(
+    allActiveMembers,
+    dateRange.year,
+    dateRange.quarter
   );
 
-  // Lọc tập Đoàn sinh thuộc phạm vi xem (Admin = Tất cả 3 ngành, hoặc Ngành cụ thể)
   const validMemberIds = new Set();
   allActiveMembers.forEach((m) => {
     const normB = memberBranchMap.get(m.id);
@@ -683,9 +794,12 @@ async function getExecutiveActivities(user, { year, quarter, branch }) {
   const totalMembers = validMemberIds.size;
 
   return activities.map((act) => {
-    const validAttendances = act.attendances.filter((att) => validMemberIds.has(att.memberId));
+    const validAttendances = act.attendances.filter((att) =>
+      validMemberIds.has(att.memberId)
+    );
     const joinedCount = validAttendances.length;
-    const rate = totalMembers > 0 ? Number(((joinedCount / totalMembers) * 100).toFixed(1)) : 0;
+    const rate =
+      totalMembers > 0 ? Number(((joinedCount / totalMembers) * 100).toFixed(1)) : 0;
 
     let formattedDate = "";
     if (act.date) {
@@ -718,80 +832,69 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
   const sixMonthsAgo = new Date(dateRange.endDate);
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-  const members = await prisma.member.findMany({
-    where: {
-      active: true,
-      ...branchFilter,
-    },
-    include: {
-      attendances: {
-        where: {
-          date: {
-            gte: sixMonthsAgo,
-            lte: dateRange.endDate,
+  const [members, categories] = await Promise.all([
+    prisma.member.findMany({
+      where: {
+        active: true,
+        ...branchFilter,
+      },
+      include: {
+        attendances: {
+          where: {
+            date: {
+              gte: sixMonthsAgo,
+              lte: dateRange.endDate,
+            },
+          },
+          select: {
+            status: true,
           },
         },
-        select: {
-          status: true,
+        grades: {
+          where: {
+            year: dateRange.year,
+            quarter: dateRange.quarter,
+          },
+          include: {
+            category: true,
+          },
         },
       },
-      grades: {
-        where: {
-          year: dateRange.year,
-          quarter: dateRange.quarter,
-        },
-        include: {
-          category: true,
-        },
-      },
-    },
-  });
+    }),
+    prisma.gradeCategory.findMany({ where: { active: true } }),
+  ]);
 
-  const categories = await prisma.gradeCategory.findMany({
-    where: {
-      active: true,
-    },
-  });
+  // Batch resolve historical branch (1 query)
+  const memberBranchMap = await batchGetMemberBranchAtQuarterEnd(
+    members,
+    dateRange.year,
+    dateRange.quarter
+  );
 
-  const memberDataPromises = members.map(async (member) => {
+  const memberData = members.map((member) => {
     const scoresMap = {};
     for (const grade of member.grades) {
-      scoresMap[grade.category.name] = grade.score;
+      if (grade.category && grade.category.name) {
+        scoresMap[grade.category.name] = grade.score;
+      }
     }
 
     const scoredCategories = Object.keys(scoresMap);
-
     let averageGrade = null;
     if (scoredCategories.length > 0) {
       averageGrade = calculateTotalScoreDynamic(scoresMap, categories);
     }
 
-    const attendanceEquivalent = member.attendances.reduce(
-      (total, attendance) => {
-        switch (attendance.status) {
-          case "absent":  return total + 1;
-          case "late":    return total + 0.5;
-          case "excused": return total + 0.2;
-          default:        return total;
-        }
-      },
-      0
-    );
-
-    const absentCount  = member.attendances.filter((a) => a.status === "absent").length;
-    const lateCount    = member.attendances.filter((a) => a.status === "late").length;
+    const attendanceEquivalent = calcAbsentEquivalent(member.attendances);
+    const absentCount = member.attendances.filter((a) => a.status === "absent").length;
+    const lateCount = member.attendances.filter((a) => a.status === "late").length;
     const excusedCount = member.attendances.filter((a) => a.status === "excused").length;
 
-    // ✅ Resolve ngành lịch sử tại thời điểm chốt quý
-    const resolvedBranch = await getMemberBranchAtQuarterEnd(
-      member.id,
-      dateRange.year,
-      dateRange.quarter
-    );
+    const resolvedBranch = memberBranchMap.get(member.id) || member.branch || "UNKNOWN";
 
     return {
       member,
-      branch: resolvedBranch || member.branch || "UNKNOWN",
+      branch: resolvedBranch,
       averageGrade,
       scoredCategoryCount: scoredCategories.length,
       attendanceEquivalent,
@@ -801,13 +904,9 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
     };
   });
 
-  const memberData = await Promise.all(memberDataPromises);
-
   const branchScoreGroups = {};
-
   for (const data of memberData) {
     if (data.averageGrade === null) continue;
-
     const branchKey = data.branch;
     if (!branchScoreGroups[branchKey]) {
       branchScoreGroups[branchKey] = [];
@@ -837,7 +936,7 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
     } = data;
 
     let attendanceRisk = 0;
-    if (attendanceEquivalent >= 6)      attendanceRisk = 65;
+    if (attendanceEquivalent >= 6) attendanceRisk = 65;
     else if (attendanceEquivalent >= 5) attendanceRisk = 55;
     else if (attendanceEquivalent >= 4) attendanceRisk = 40;
     else if (attendanceEquivalent >= 3) attendanceRisk = 25;
@@ -853,21 +952,19 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
       if (branchAverageGrade !== null) {
         gradeDifference = branchAverageGrade - averageGrade;
 
-        if (gradeDifference >= 1.5)      gradeRisk = 30;
-        else if (gradeDifference >= 1)   gradeRisk = 20;
+        if (gradeDifference >= 1.5) gradeRisk = 30;
+        else if (gradeDifference >= 1) gradeRisk = 20;
         else if (gradeDifference >= 0.5) gradeRisk = 10;
       }
     }
 
     const riskScore = Math.min(100, attendanceRisk + gradeRisk);
-
     if (riskScore < 30) continue;
 
     let riskLevel = "medium";
     if (riskScore >= 60) riskLevel = "high";
 
     const reasons = [];
-
     if (attendanceEquivalent >= 2) {
       reasons.push(
         `Vắng/trễ quy đổi ${attendanceEquivalent.toFixed(1)} buổi trong 6 tháng gần nhất`
@@ -875,9 +972,7 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
     }
 
     if (gradeDifference !== null && gradeDifference >= 0.5) {
-      reasons.push(
-        `Điểm thấp hơn trung bình Ngành ${gradeDifference.toFixed(1)} điểm`
-      );
+      reasons.push(`Điểm thấp hơn trung bình Ngành ${gradeDifference.toFixed(1)} điểm`);
     }
 
     riskMembers.push({
@@ -885,26 +980,22 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
       fullName: member.name,
       parish: member.parish || "",
       branch: getDisplayBranchName(branchKey || "Chưa phân ngành"),
-
       riskScore,
       riskLevel,
-
       absentCount,
       lateCount,
       excusedCount,
       attendanceEquivalent: Number(attendanceEquivalent.toFixed(1)),
-
-      averageGrade:       averageGrade !== null       ? Number(averageGrade.toFixed(1))       : null,
-      branchAverageGrade: branchAverageGrade !== null ? Number(branchAverageGrade.toFixed(1)) : null,
-      gradeDifference:    gradeDifference !== null    ? Number(gradeDifference.toFixed(1))    : null,
-
+      averageGrade: averageGrade !== null ? Number(averageGrade.toFixed(1)) : null,
+      branchAverageGrade:
+        branchAverageGrade !== null ? Number(branchAverageGrade.toFixed(1)) : null,
+      gradeDifference: gradeDifference !== null ? Number(gradeDifference.toFixed(1)) : null,
       scoredCategoryCount,
       reasons,
     });
   }
 
   riskMembers.sort((a, b) => b.riskScore - a.riskScore);
-
   return riskMembers;
 }
 

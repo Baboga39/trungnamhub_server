@@ -268,7 +268,7 @@ async function getTop3MembersByScoreThisYear(user) {
   const currentYear = new Date().getFullYear();
   const branchFilter = buildBranchFilter(user);
 
-  // lấy điểm các category, chỉ lấy member thuộc branch của user
+  // Lấy điểm các category của các quý trong năm
   const grades = await prisma.grade.findMany({
     where: {
       year: currentYear,
@@ -281,7 +281,7 @@ async function getTop3MembersByScoreThisYear(user) {
     },
   });
 
-  // lấy điểm hoạt động
+  // Lấy điểm hoạt động trong năm
   const activities = await prisma.activityAttendance.findMany({
     where: {
       activity: {
@@ -294,16 +294,13 @@ async function getTop3MembersByScoreThisYear(user) {
     },
   });
 
-  // map activity score
+  // Map activity score theo member + quarter
   const activityMap = new Map();
-
   for (const a of activities) {
-    const key = a.memberId;
-
-    const current = activityMap.get(key) || { score: 0 };
-
+    const key = `${a.memberId}_${a.activity.year}_${a.activity.quarter}`;
+    const current = activityMap.get(key) || { count: 0, score: 0 };
+    current.count += 1;
     current.score = Math.min(current.score + 0.2, 10);
-
     activityMap.set(key, current);
   }
 
@@ -311,41 +308,53 @@ async function getTop3MembersByScoreThisYear(user) {
     where: { active: true },
   });
 
-  const map = new Map();
-
+  // Gom điểm theo từng đoàn sinh và từng quý riêng biệt
+  const memberQuarterMap = new Map();
   for (const g of grades) {
-    if (!map.has(g.memberId)) {
-      map.set(g.memberId, {
+    if (!memberQuarterMap.has(g.memberId)) {
+      memberQuarterMap.set(g.memberId, {
         member: g.mMember,
-        formData: {},
+        quarters: {},
       });
     }
 
-    const item = map.get(g.memberId);
-
-    const nameMap = {
-      "Kiến thức": "knowledge",
-      "Kỹ năng": "skill",
-      "Chuyên cần": "attendance",
-      Thưởng: "bonus",
-      Phạt: "penalty",
-    };
+    const mData = memberQuarterMap.get(g.memberId);
+    if (!mData.quarters[g.quarter]) {
+      mData.quarters[g.quarter] = {};
+    }
 
     const catName = g.category.name.trim();
-    const key = nameMap[catName] || catName;
-    item.formData[key] = g.score;
+    mData.quarters[g.quarter][catName] = g.score;
   }
 
-  const result = Array.from(map.entries()).map(([memberId, data]) => {
-    const activity = activityMap.get(memberId) || { score: 0 };
+  // Tính điểm từng Quý rồi lấy trung bình cộng các Quý có điểm
+  const result = Array.from(memberQuarterMap.entries()).map(([memberId, data]) => {
+    const quarterScores = [];
 
-    const baseScore = calculateTotalScoreDynamic(data.formData, categories);
+    // Sắp xếp quý tăng dần
+    const sortedQuarterNums = Object.keys(data.quarters)
+      .map(Number)
+      .sort((a, b) => a - b);
 
-    const totalScore = Number((baseScore + activity.score).toFixed(1));
+    for (const qNum of sortedQuarterNums) {
+      const scoresObj = data.quarters[qNum];
+      const actKey = `${memberId}_${currentYear}_${qNum}`;
+      const act = activityMap.get(actKey) || { score: 0 };
+
+      const baseScore = calculateTotalScoreDynamic(scoresObj, categories);
+      const qTotal = baseScore + act.score;
+      quarterScores.push(qTotal);
+    }
+
+    const avgScore =
+      quarterScores.length > 0
+        ? Number((quarterScores.reduce((sum, s) => sum + s, 0) / quarterScores.length).toFixed(1))
+        : 0;
+
     return {
       memberId,
-      totalScore,
-      rank: getRank(totalScore),
+      totalScore: avgScore,
+      rank: getRank(avgScore),
       member: data.member,
     };
   });
@@ -383,14 +392,11 @@ async function getRankingThisYear(user) {
   });
 
   const activityMap = new Map();
-
   for (const a of activities) {
-    const key = a.memberId;
-
-    const current = activityMap.get(key) || { score: 0 };
-
+    const key = `${a.memberId}_${a.activity.year}_${a.activity.quarter}`;
+    const current = activityMap.get(key) || { count: 0, score: 0 };
+    current.count += 1;
     current.score = Math.min(current.score + 0.2, 10);
-
     activityMap.set(key, current);
   }
 
@@ -398,32 +404,60 @@ async function getRankingThisYear(user) {
     where: { active: true },
   });
 
-  const map = {};
-
+  const memberQuarterMap = new Map();
   for (const g of grades) {
-    if (!map[g.memberId]) {
-      map[g.memberId] = {
-        memberId: g.memberId,
+    if (!memberQuarterMap.has(g.memberId)) {
+      memberQuarterMap.set(g.memberId, {
         member: g.mMember,
-        scores: {},
-      };
+        quarters: {},
+      });
     }
 
-    map[g.memberId].scores[g.category.name] = g.score;
+    const mData = memberQuarterMap.get(g.memberId);
+    if (!mData.quarters[g.quarter]) {
+      mData.quarters[g.quarter] = {};
+    }
+
+    const catName = g.category.name.trim();
+    mData.quarters[g.quarter][catName] = g.score;
   }
 
-  const ranking = Object.values(map).map((m) => {
-    const activity = activityMap.get(m.memberId) || { score: 0 };
+  const ranking = Array.from(memberQuarterMap.entries()).map(([memberId, data]) => {
+    const quarterScores = [];
+    const sortedQuarterNums = Object.keys(data.quarters)
+      .map(Number)
+      .sort((a, b) => a - b);
 
-    const baseScore = calculateTotalScoreDynamic(m.scores, categories);
+    for (const qNum of sortedQuarterNums) {
+      const scoresObj = data.quarters[qNum];
+      const actKey = `${memberId}_${currentYear}_${qNum}`;
+      const act = activityMap.get(actKey) || { score: 0 };
 
-    const totalScore = Number((baseScore + activity.score).toFixed(1));
+      const baseScore = calculateTotalScoreDynamic(scoresObj, categories);
+      const qTotal = baseScore + act.score;
+      quarterScores.push(qTotal);
+    }
+
+    const avgScore =
+      quarterScores.length > 0
+        ? Number((quarterScores.reduce((sum, s) => sum + s, 0) / quarterScores.length).toFixed(1))
+        : 0;
+
+    let trend = "same";
+    if (quarterScores.length >= 2) {
+      const latest = quarterScores[quarterScores.length - 1];
+      const prev = quarterScores[quarterScores.length - 2];
+      if (latest > prev) trend = "up";
+      else if (latest < prev) trend = "down";
+    }
+
     return {
-      memberId: m.memberId,
-      memberName: m.member.name,
-      holyName: m.member.holyName,
-      totalScore,
-      rankText: getRank(totalScore),
+      memberId,
+      memberName: data.member.name,
+      holyName: data.member.holyName,
+      totalScore: avgScore,
+      trend,
+      rankText: getRank(avgScore),
     };
   });
 
