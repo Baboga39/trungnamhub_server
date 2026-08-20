@@ -12,6 +12,8 @@ router.get("/ranking", middlewares.auth, dashboardController.getRankingThisYear)
 router.get("/grade-trend-timeline", middlewares.auth, dashboardController.getGradeTrendTimeline);
 router.get("/attendance-streak-top", middlewares.auth, dashboardController.getAttendanceStreakTop);
 router.get("/risk-members", middlewares.auth, dashboardController.getRiskMembers);
+router.get("/quarterly-birthdays", middlewares.auth, dashboardController.getQuarterlyBirthdays);
+
 
 // Executive Dashboard Endpoints (Cockpit for Quý Trưởng Đoàn)
 router.get("/executive/overview", middlewares.auth, executiveDashboardController.getOverview);

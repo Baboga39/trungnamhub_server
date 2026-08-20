@@ -12,12 +12,14 @@ async function getDashboardStats(req, res, next) {
 
 async function getTop3MembersByScoreThisYear(req, res, next) {
   try {
-    const result = await services.gradeService.getTop3MembersByScoreThisYear(req.user);
-    return res.ok(result, "Get top 3 members by score this year success");
+    const { quarter, year } = req.query;
+    const result = await services.gradeService.getTop3MembersByScoreThisYear(req.user, quarter, year);
+    return res.ok(result, "Get top 3 members by score success");
   } catch (err) {
     next(err);
   }
 }
+
 
 async function getRankingThisYear(req, res, next) {
   try {
@@ -55,6 +57,16 @@ async function getRiskMembers(req, res, next) {
   }
 }
 
+async function getQuarterlyBirthdays(req, res, next) {
+  try {
+    const { quarter, year } = req.query;
+    const result = await services.dashboardService.getQuarterlyBirthdays(req.user, quarter, year);
+    return res.ok(result, "Get quarterly birthdays success");
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   getDashboardStats,
   getTop3MembersByScoreThisYear,
@@ -62,4 +74,5 @@ module.exports = {
   getGradeTrendTimeline,
   getAttendanceStreakTop,
   getRiskMembers,
+  getQuarterlyBirthdays,
 };

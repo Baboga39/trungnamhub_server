@@ -263,16 +263,19 @@ async function recalculateAllAttendanceScores(date) {
   );
 }
 
-async function getTop3MembersByScoreThisYear(user) {
-  const quarters = getCurrentEvaluationQuarters();
-  const currentYear = new Date().getFullYear();
+async function getTop3MembersByScoreThisYear(user, queryQuarter, queryYear) {
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentQuarter = Math.ceil(currentMonth / 3);
+  const quarter = queryQuarter ? Number(queryQuarter) : currentQuarter;
+  const year = queryYear ? Number(queryYear) : now.getFullYear();
   const branchFilter = buildBranchFilter(user);
 
-  // Lấy điểm các category của các quý trong năm
+  // Lấy điểm các category của quý được chọn
   const grades = await prisma.grade.findMany({
     where: {
-      year: currentYear,
-      quarter: { in: quarters },
+      year,
+      quarter,
       mMember: { ...branchFilter },
     },
     include: {
@@ -281,86 +284,67 @@ async function getTop3MembersByScoreThisYear(user) {
     },
   });
 
-  // Lấy điểm hoạt động trong năm
+  // Lấy điểm hoạt động trong quý được chọn
   const activities = await prisma.activityAttendance.findMany({
     where: {
       activity: {
-        year: currentYear,
-        quarter: { in: quarters },
+        year,
+        quarter,
       },
+      member: { ...branchFilter },
     },
     include: {
       activity: true,
     },
   });
 
-  // Map activity score theo member + quarter
+  // Map activity score theo member
   const activityMap = new Map();
   for (const a of activities) {
-    const key = `${a.memberId}_${a.activity.year}_${a.activity.quarter}`;
-    const current = activityMap.get(key) || { count: 0, score: 0 };
+    const current = activityMap.get(a.memberId) || { count: 0, score: 0 };
     current.count += 1;
     current.score = Math.min(current.score + 0.2, 10);
-    activityMap.set(key, current);
+    activityMap.set(a.memberId, current);
   }
 
   const categories = await prisma.gradeCategory.findMany({
     where: { active: true },
   });
 
-  // Gom điểm theo từng đoàn sinh và từng quý riêng biệt
-  const memberQuarterMap = new Map();
+  // Gom điểm theo từng đoàn sinh cho quý này
+  const memberGradeMap = new Map();
   for (const g of grades) {
-    if (!memberQuarterMap.has(g.memberId)) {
-      memberQuarterMap.set(g.memberId, {
+    if (!memberGradeMap.has(g.memberId)) {
+      memberGradeMap.set(g.memberId, {
         member: g.mMember,
-        quarters: {},
+        scores: {},
       });
     }
 
-    const mData = memberQuarterMap.get(g.memberId);
-    if (!mData.quarters[g.quarter]) {
-      mData.quarters[g.quarter] = {};
-    }
-
+    const mData = memberGradeMap.get(g.memberId);
     const catName = g.category.name.trim();
-    mData.quarters[g.quarter][catName] = g.score;
+    mData.scores[catName] = g.score;
   }
 
-  // Tính điểm từng Quý rồi lấy trung bình cộng các Quý có điểm
-  const result = Array.from(memberQuarterMap.entries()).map(([memberId, data]) => {
-    const quarterScores = [];
-
-    // Sắp xếp quý tăng dần
-    const sortedQuarterNums = Object.keys(data.quarters)
-      .map(Number)
-      .sort((a, b) => a - b);
-
-    for (const qNum of sortedQuarterNums) {
-      const scoresObj = data.quarters[qNum];
-      const actKey = `${memberId}_${currentYear}_${qNum}`;
-      const act = activityMap.get(actKey) || { score: 0 };
-
-      const baseScore = calculateTotalScoreDynamic(scoresObj, categories);
-      const qTotal = baseScore + act.score;
-      quarterScores.push(qTotal);
-    }
-
-    const avgScore =
-      quarterScores.length > 0
-        ? Number((quarterScores.reduce((sum, s) => sum + s, 0) / quarterScores.length).toFixed(1))
-        : 0;
+  // Tính điểm tổng quý cho từng đoàn sinh
+  const result = Array.from(memberGradeMap.entries()).map(([memberId, data]) => {
+    const act = activityMap.get(memberId) || { score: 0 };
+    const baseScore = calculateTotalScoreDynamic(data.scores, categories);
+    const totalScore = Number((baseScore + act.score).toFixed(1));
 
     return {
       memberId,
-      totalScore: avgScore,
-      rank: getRank(avgScore),
+      totalScore,
+      rank: getRank(totalScore),
       member: data.member,
+      quarter,
+      year,
     };
   });
 
   return result.sort((a, b) => b.totalScore - a.totalScore).slice(0, 3);
 }
+
 
 async function getRankingThisYear(user) {
   const quarters = getCurrentEvaluationQuarters();

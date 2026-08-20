@@ -8,12 +8,69 @@ function calcTrendPercent(current, previous) {
   return Number((((current - previous) / previous) * 100).toFixed(2));
 }
 
+const ATTENDANCE_EQUIVALENTS = {
+  absent: 1,
+  unexcused: 1,
+  late: 0.5,
+  excused: 0.2,
+  present: 0,
+};
+
+function formatSessionDate(date) {
+  if (!date) return "";
+  if (typeof date === "string" && date.includes("/")) {
+    return date;
+  }
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return String(date);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}`;
+}
+
+async function calculateSessionAttendance(sessionDate, branchFilter) {
+  if (!sessionDate) return null;
+
+  const [totalMembers, attendances] = await Promise.all([
+    prisma.member.count({
+      where: {
+        active: true,
+        createdAt: { lte: sessionDate },
+        ...branchFilter,
+      },
+    }),
+    prisma.attendance.findMany({
+      where: {
+        date: sessionDate,
+        member: { ...branchFilter },
+      },
+      select: { status: true, memberId: true },
+    }),
+  ]);
+
+  const absentEq = attendances.reduce((acc, a) => {
+    return acc + (ATTENDANCE_EQUIVALENTS[a.status] !== undefined ? ATTENDANCE_EQUIVALENTS[a.status] : 1);
+  }, 0);
+
+  const presentCount = Math.max(0, Math.round(totalMembers - absentEq));
+  const rate =
+    totalMembers > 0
+      ? Number(((Math.max(0, totalMembers - absentEq) / totalMembers) * 100).toFixed(1))
+      : 0;
+
+  return {
+    date: formatSessionDate(sessionDate),
+    rawDate: sessionDate,
+    totalMembers,
+    presentCount,
+    rate,
+  };
+}
+
 async function getDashboardStats(user) {
   const now = new Date();
   const branchFilter = buildBranchFilter(user);
 
-  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
   const startOfYear = new Date(now.getFullYear(), 0, 1);
@@ -28,12 +85,6 @@ async function getDashboardStats(user) {
 
     totalManagersThisMonth,
     totalManagersLastMonth,
-
-    attendanceThisMonth,
-    attendanceLastMonth,
-
-    totalActiveThisMonth,
-    totalActiveLastMonth,
   ] = await Promise.all([
     prisma.member.count({ where: { active: true, createdAt: { lte: now }, ...branchFilter } }),
     prisma.member.count({ where: { active: true, createdAt: { lte: endOfLastMonth }, ...branchFilter } }),
@@ -41,24 +92,74 @@ async function getDashboardStats(user) {
     // managers (User) are not branch-filtered
     prisma.user.count({ where: { active: true, createdAt: { lte: now } } }),
     prisma.user.count({ where: { active: true, createdAt: { lte: endOfLastMonth } } }),
-
-    // attendance counts filtered by member branch via nested where
-    prisma.attendance.count({
-      where: {
-        date: { gte: startOfThisMonth, lte: now },
-        member: { ...branchFilter },
-      },
-    }),
-    prisma.attendance.count({
-      where: {
-        date: { gte: startOfLastMonth, lte: endOfLastMonth },
-        member: { ...branchFilter },
-      },
-    }),
-
-    prisma.member.count({ where: { active: true, createdAt: { lte: now }, ...branchFilter } }),
-    prisma.member.count({ where: { active: true, createdAt: { lte: endOfLastMonth }, ...branchFilter } }),
   ]);
+
+  // Query 2 recent sessions on or before now
+  const sessionWhere = {
+    date: { lte: now },
+  };
+  if (branchFilter.branch) {
+    sessionWhere.branch = branchFilter.branch;
+  }
+
+  let recentSessions = await prisma.session.findMany({
+    where: sessionWhere,
+    orderBy: { date: "desc" },
+    take: 2,
+    select: { date: true },
+  });
+
+  // Fallback: If sessions table has no records, check distinct attendance dates
+  if (recentSessions.length === 0) {
+    const attWhere = {
+      date: { lte: now },
+    };
+    if (branchFilter.branch) {
+      attWhere.member = { branch: branchFilter.branch };
+    }
+    const distinctDates = await prisma.attendance.findMany({
+      where: attWhere,
+      select: { date: true },
+      distinct: ["date"],
+      orderBy: { date: "desc" },
+      take: 2,
+    });
+    recentSessions = distinctDates;
+  }
+
+  const latestSessionData = await calculateSessionAttendance(recentSessions[0]?.date, branchFilter);
+  const prevSessionData = recentSessions[1]
+    ? await calculateSessionAttendance(recentSessions[1]?.date, branchFilter)
+    : null;
+
+  let latestAttendance = {
+    hasData: false,
+    rate: 0,
+    presentCount: 0,
+    totalMembers: 0,
+    date: null,
+    trend: 0,
+    trendPercent: 0,
+  };
+
+  if (latestSessionData) {
+    const trend = prevSessionData
+      ? Number((latestSessionData.rate - prevSessionData.rate).toFixed(1))
+      : 0;
+    const trendPercent = prevSessionData
+      ? calcTrendPercent(latestSessionData.rate, prevSessionData.rate)
+      : 0;
+
+    latestAttendance = {
+      hasData: true,
+      rate: latestSessionData.rate,
+      presentCount: latestSessionData.presentCount,
+      totalMembers: latestSessionData.totalMembers,
+      date: latestSessionData.date,
+      trend,
+      trendPercent,
+    };
+  }
 
   let totalSessionsThisYear = 0;
   let totalSessionsLastYear = 0;
@@ -91,14 +192,6 @@ async function getDashboardStats(user) {
     ]);
   }
 
-  const attendanceRateThisMonth = totalActiveThisMonth
-    ? (attendanceThisMonth / totalActiveThisMonth) * 100
-    : 0;
-
-  const attendanceRateLastMonth = totalActiveLastMonth
-    ? (attendanceLastMonth / totalActiveLastMonth) * 100
-    : 0;
-
   return {
     totalMembers: {
       value: totalMembersThisMonth,
@@ -110,10 +203,11 @@ async function getDashboardStats(user) {
       trend: totalManagersThisMonth - totalManagersLastMonth,
       trendPercent: calcTrendPercent(totalManagersThisMonth, totalManagersLastMonth),
     },
+    latestAttendance,
     attendanceRate: {
-      value: Number(attendanceRateThisMonth.toFixed(2)),
-      trend: Number((attendanceRateThisMonth - attendanceRateLastMonth).toFixed(2)),
-      trendPercent: calcTrendPercent(attendanceRateThisMonth, attendanceRateLastMonth),
+      value: latestAttendance.rate,
+      trend: latestAttendance.trend,
+      trendPercent: latestAttendance.trendPercent,
     },
     totalSessions: {
       value: totalSessionsThisYear,
@@ -492,8 +586,107 @@ async function getAttendanceStreakTop(user, limit = 10) {
       Number(limit) || 10
     );
 }
+
+async function getQuarterlyBirthdays(user, queryQuarter, queryYear) {
+  const branchFilter = buildBranchFilter(user);
+  const now = new Date();
+  const year = queryYear ? Number(queryYear) : now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-12
+  const currentQuarter = Math.ceil(currentMonth / 3); // 1-4
+  const quarter = queryQuarter ? Number(queryQuarter) : currentQuarter;
+
+  // Quarter months (1-indexed)
+  const quarterMonths = [(quarter - 1) * 3 + 1, (quarter - 1) * 3 + 2, (quarter - 1) * 3 + 3];
+
+  const members = await prisma.member.findMany({
+    where: {
+      active: true,
+      birthDate: { not: null },
+      ...branchFilter,
+    },
+    select: {
+      id: true,
+      name: true,
+      birthDate: true,
+      gender: true,
+      parish: true,
+      church: true,
+      branch: true,
+      group: true,
+    },
+  });
+
+  const matchingMembers = [];
+
+  for (const m of members) {
+    if (!m.birthDate) continue;
+    const bDate = new Date(m.birthDate);
+    const bMonth = bDate.getMonth() + 1; // 1-12
+    const bDay = bDate.getDate();
+    const bYear = bDate.getFullYear();
+
+    if (quarterMonths.includes(bMonth)) {
+      const age = bYear ? year - bYear : null;
+      const isToday = (bMonth === currentMonth && bDay === now.getDate());
+      const isThisMonth = (bMonth === currentMonth);
+
+      const formattedDay = String(bDay).padStart(2, "0");
+      const formattedMonth = String(bMonth).padStart(2, "0");
+      const formattedDate = `${formattedDay}/${formattedMonth}`;
+
+      matchingMembers.push({
+        id: m.id,
+        fullName: m.name,
+        birthDate: m.birthDate,
+        birthDay: bDay,
+        birthMonth: bMonth,
+        birthYear: bYear,
+        formattedDate,
+        age,
+        parish: m.parish || "",
+        church: m.church || "",
+        branch: m.branch || "",
+        group: m.group || "",
+        gender: m.gender || "",
+        isToday,
+        isThisMonth,
+      });
+    }
+  }
+
+  // Sort by birthMonth, then birthDay
+  matchingMembers.sort((a, b) => {
+    if (a.birthMonth !== b.birthMonth) {
+      return a.birthMonth - b.birthMonth;
+    }
+    return a.birthDay - b.birthDay;
+  });
+
+  // Group by month
+  const byMonth = quarterMonths.map((m) => {
+    const monthMembers = matchingMembers.filter((item) => item.birthMonth === m);
+    return {
+      month: m,
+      monthName: `Tháng ${m}`,
+      count: monthMembers.length,
+      members: monthMembers,
+    };
+  });
+
+  return {
+    quarter,
+    year,
+    quarterMonths,
+    total: matchingMembers.length,
+    byMonth,
+    members: matchingMembers,
+  };
+}
+
 module.exports = {
   getDashboardStats,
   getRiskMembers,
   getAttendanceStreakTop,
+  getQuarterlyBirthdays,
 };
+
