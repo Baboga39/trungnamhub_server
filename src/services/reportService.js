@@ -480,6 +480,7 @@ const getAttendanceQuarterlyData = async (year, quarter, user) => {
       id: m.id,
       name: m.name,
       branch: mBranch,
+      group: m.group || "Đang cập nhật",
       present,
       late,
       excused,
@@ -622,7 +623,7 @@ const generateAttendanceQuarterlyExcel = async (data) => {
     const row = detailSheet.addRow([
       idx + 1,
       m.name,
-      m.branch,
+      m.group,
       m.present,
       m.late,
       m.excused,
@@ -688,7 +689,7 @@ const generateAttendanceQuarterlyPDF = async (data) => {
     tableBody.push([
       { text: (idx + 1).toString(), alignment: "center" },
       { text: m.name, bold: true },
-      { text: m.branch },
+      { text: m.group },
       { text: m.present.toString(), alignment: "center" },
       { text: m.late.toString(), alignment: "center" },
       { text: m.excused.toString(), alignment: "center" },
@@ -868,10 +869,6 @@ const generateAttendanceQuarterlyReportBundle = async (year, quarter, email, use
   };
 };
 
-// ============================================================================
-// 9. BÁO CÁO CHUYÊN CẦN TẤT CẢ THỜI GIAN (ALL-TIME)
-// ============================================================================
-
 const getAttendanceAllTimeData = async (user) => {
   const branchFilter = buildBranchFilter(user);
   const sessions = await prisma.session.findMany({
@@ -957,6 +954,7 @@ const getAttendanceAllTimeData = async (user) => {
       name: m.name,
       branch: mBranch,
       present,
+      group: m.group || "Đang cập nhật",
       late,
       excused,
       absent,

@@ -129,6 +129,7 @@ async function getMembers(user) {
       active: true,
       promotionDate: true,
       contact: true,
+      group: true,
       fatherName: true,
       motherName: true,
       address: true,
@@ -160,6 +161,7 @@ async function getMembersActive(user) {
       active: true,
       promotionDate: true,
       contact: true,
+      group: true,
       user: {
         select: {
           id: true,

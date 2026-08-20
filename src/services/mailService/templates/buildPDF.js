@@ -121,6 +121,7 @@ const buildPDFDefinition = async (member, score, attendance, activity, year, qua
                 { text: `Ngày sinh: ${formatDate(member.birthDate)}`, fontSize: 10, color: subtitleColor, margin: [0, 3, 0, 3] },
                 { text: `Xã đạo: ${member.parish || "-"}`, fontSize: 10, color: subtitleColor, margin: [0, 3, 0, 3] },
                 { text: `Năm vào đoàn: ${member.startYear || "-"}`, fontSize: 10, color: subtitleColor, margin: [0, 3, 0, 0] },
+                { text: `Hàng/Đội/Toán: ${member.group || "Đang cập nhật"}`, fontSize: 10, color: subtitleColor, margin: [0, 3, 0, 3] },
               ],
               fillColor: softBlue,
               margin: [14, 14, 10, 14],
