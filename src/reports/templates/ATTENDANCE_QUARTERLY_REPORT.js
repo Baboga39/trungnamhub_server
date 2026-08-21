@@ -4,7 +4,7 @@ module.exports = {
   id: "ATTENDANCE_QUARTERLY_REPORT",
   name: "Báo cáo Chuyên cần Theo Quý (PDF & Excel)",
   description:
-    "Thống kê tổng quan tỷ lệ % chuyên cần, phân loại đoàn sinh và xuất bộ file PDF (Dashboard) & Excel đính kèm gửi Email.",
+    "Thống kê tổng quan tỷ lệ % chuyên cần, phân loại đoàn sinh và xuất bộ file PDF & Excel đính kèm (hỗ trợ chọn nhiều quý gom chung trong 1 file).",
   icon: "Calendar",
   color: "bg-teal-500",
   category: "Chuyên cần",
@@ -17,15 +17,16 @@ module.exports = {
       defaultValue: new Date().getFullYear(),
     },
     {
-      key: "quarter",
-      label: "Quý",
-      type: "select",
+      key: "quarters",
+      label: "Chọn các Quý báo cáo",
+      type: "multi-select",
       options: [
         { label: "Quý 1", value: 1 },
         { label: "Quý 2", value: 2 },
         { label: "Quý 3", value: 3 },
         { label: "Quý 4", value: 4 },
       ],
+      defaultValue: [Math.ceil((new Date().getMonth() + 1) / 3)],
     },
     {
       key: "email",
@@ -35,9 +36,11 @@ module.exports = {
   ],
 
   handler: async (parameters, res, user) => {
-    const { year, quarter, email } = parameters;
+    const { year, quarters, quarter, email } = parameters;
 
-    if (!year || !quarter) {
+    const selectedQuarters = quarters || (quarter ? [quarter] : null);
+
+    if (!year || !selectedQuarters || (Array.isArray(selectedQuarters) && selectedQuarters.length === 0)) {
       return res.status(400).json({
         message: "Thiếu thông số năm hoặc quý báo cáo",
       });
@@ -45,7 +48,7 @@ module.exports = {
 
     const zip = await service.reportService.generateAttendanceQuarterlyReportBundle(
       Number(year),
-      Number(quarter),
+      selectedQuarters,
       email,
       user
     );
