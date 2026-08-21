@@ -457,7 +457,7 @@ async function getGradeTrendTimeline(user) {
   const currentYear = new Date().getFullYear();
   const branchFilter = buildBranchFilter(user);
 
-  // Lấy toàn bộ grade trong năm, lọc theo branch
+  // Lấy toàn bộ grade trong năm, kèm category name
   const grades = await prisma.grade.findMany({
     where: {
       year: currentYear,
@@ -465,44 +465,46 @@ async function getGradeTrendTimeline(user) {
     },
     select: {
       score: true,
-      createdAt: true,
+      quarter: true,
+      category: { select: { name: true } },
     },
   });
 
-  // Gom theo tháng
-  const monthMap = {};
+  // Gom theo quarter + category, tính avg score
+  // key: "Q{quarter}" -> { categoryName -> [scores] }
+  const quarterMap = {};
+  const categorySet = new Set();
 
   for (const g of grades) {
-    const month = g.createdAt.getMonth() + 1; // 1 -> 12
+    const qKey = `Q${g.quarter}`;
+    const catName = g.category.name;
+    categorySet.add(catName);
 
-    if (!monthMap[month]) {
-      monthMap[month] = {
-        month: `Tháng ${month}`,
-        scores: [],
-      };
-    }
+    if (!quarterMap[qKey]) quarterMap[qKey] = {};
+    if (!quarterMap[qKey][catName]) quarterMap[qKey][catName] = [];
 
-    monthMap[month].scores.push(g.score);
+    quarterMap[qKey][catName].push(g.score);
   }
 
-  // Tính avg / max / min cho từng tháng
-  const result = Object.values(monthMap).map((m) => {
-    const avg = m.scores.reduce((a, b) => a + b, 0) / m.scores.length;
+  const categories = Array.from(categorySet);
 
-    return {
-      month: m.month,
-      average: Number(avg.toFixed(1)),
-      max: Number(Math.max(...m.scores).toFixed(1)),
-      min: Number(Math.min(...m.scores).toFixed(1)),
-    };
+  // Tạo data cho 4 quý, mỗi quý có avg score từng category
+  const data = [1, 2, 3, 4].map((q) => {
+    const qKey = `Q${q}`;
+    const row = { quarter: qKey };
+
+    for (const cat of categories) {
+      const scores = quarterMap[qKey]?.[cat];
+      if (scores && scores.length > 0) {
+        const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+        row[cat] = Number(avg.toFixed(1));
+      }
+    }
+
+    return row;
   });
 
-  // sort theo tháng tăng dần
-  return result.sort((a, b) => {
-    const ma = parseInt(a.month.replace("Tháng ", ""));
-    const mb = parseInt(b.month.replace("Tháng ", ""));
-    return ma - mb;
-  });
+  return { data, categories };
 }
 
 async function deleteScore({ memberId, year, quarter }) {
