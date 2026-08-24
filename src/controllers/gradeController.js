@@ -22,10 +22,20 @@ async function upSertGradeCategory(req, res, next) {
 
 async function softDeleteGradeCategory(req, res, next) {
   try {
-    const { id } = req.params;
+    const id = req.params.id || req.body.id;
     const deletedGradeCategory =
-    await service.gradeService.softDeleteGradeCategory(id);
+      await service.gradeService.softDeleteGradeCategory(id);
     res.ok(deletedGradeCategory, "Grade category deleted successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deleteGradeCategory(req, res, next) {
+  try {
+    const id = req.params.id || req.body.id;
+    const result = await service.gradeService.deleteGradeCategory(id);
+    res.ok(result, "Grade category deleted successfully");
   } catch (err) {
     next(err);
   }
@@ -33,7 +43,8 @@ async function softDeleteGradeCategory(req, res, next) {
 
 async function getAllGradeCategory(req, res, next) {
   try {
-    const gradeCategory = await service.gradeService.getAllGradeCategory();
+    const includeInactive = req.query.includeInactive === "true";
+    const gradeCategory = await service.gradeService.getAllGradeCategory(includeInactive);
     res.ok(gradeCategory, "Fetched grade category successfully");
   } catch (err) {
     next(err);
@@ -62,6 +73,7 @@ async function deleteScore(req, res, next) {
 module.exports = {
   getAllGrades,
   softDeleteGradeCategory,
+  deleteGradeCategory,
   upSertGradeCategory,
   getAllGradeCategory,
   upSertScore,

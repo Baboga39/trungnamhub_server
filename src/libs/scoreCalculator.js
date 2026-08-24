@@ -21,9 +21,13 @@ function calculateTotalScoreDynamic(formData, categories) {
     Phạt: "penalty",
   };
 
-  for (const cat of categories) {
-    // Thưởng / Phạt được xử lý riêng bên dưới
-    if (cat.name === "Thưởng" || cat.name === "Phạt") continue;
+  const regularCats = categories.filter(
+    (c) => c.name !== "Thưởng" && c.name !== "Phạt"
+  );
+
+  for (const cat of regularCats) {
+    const weight = Number(cat.weight) || 0;
+    totalWeight += weight;
 
     const key = nameMap[cat.name] || cat.name;
     const normKey = cat.name.toLowerCase().replace(/\s+/g, "_");
@@ -34,13 +38,8 @@ function calculateTotalScoreDynamic(formData, categories) {
       formData[cat.name] ??
       formData[normKey];
 
- 
-
-        const value = Number(rawValue) || 0;
-
-
-    weightedSum += value * cat.weight;
-    totalWeight += cat.weight;
+    const value = Number(rawValue) || 0;
+    weightedSum += value * weight;
   }
 
   const baseScore = totalWeight > 0 ? weightedSum / totalWeight : 0;

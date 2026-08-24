@@ -91,22 +91,59 @@ function buildActivityMap(activities, groupByQuarter = true) {
 }
 
 async function upSertGradeCategory(data, user) {
+  const userId = user?.userId || user?.id || 1;
+  const categoryData = {
+    name: data.name.trim(),
+    weight: Number(data.weight),
+    active: data.active !== undefined ? Boolean(data.active) : true,
+  };
+
+  if (data.id) {
+    return prisma.gradeCategory.update({
+      where: { id: Number(data.id) },
+      data: categoryData,
+    });
+  }
+
   return prisma.gradeCategory.upsert({
-    where: { id: data.id || 0 },
-    update: { ...data, createdById: user.userId },
-    create: { ...data, createdById: user.userId },
+    where: { name: categoryData.name },
+    update: categoryData,
+    create: {
+      ...categoryData,
+      createdById: userId,
+    },
   });
 }
 
 async function softDeleteGradeCategory(id) {
-  return prisma.grade.update({
-    where: { id },
+  return prisma.gradeCategory.update({
+    where: { id: Number(id) },
     data: { active: false },
   });
 }
-async function getAllGradeCategory() {
+
+async function deleteGradeCategory(id) {
+  const catId = Number(id);
+  const gradeCount = await prisma.grade.count({
+    where: { categoryId: catId },
+  });
+
+  if (gradeCount > 0) {
+    return prisma.gradeCategory.update({
+      where: { id: catId },
+      data: { active: false },
+    });
+  }
+
+  return prisma.gradeCategory.delete({
+    where: { id: catId },
+  });
+}
+
+async function getAllGradeCategory(includeInactive = false) {
   return prisma.gradeCategory.findMany({
-    where: { active: true },
+    where: includeInactive ? undefined : { active: true },
+    orderBy: { id: "asc" },
   });
 }
 
@@ -307,9 +344,20 @@ async function getTop3MembersByScoreThisYear(user, queryQuarter, queryYear) {
     activityMap.set(a.memberId, current);
   }
 
-  const categories = await prisma.gradeCategory.findMany({
+  const allCategories = await prisma.gradeCategory.findMany({
     where: { active: true },
   });
+
+  // Lấy danh sách các category thực tế có chấm điểm trong quý này (trừ Thưởng / Phạt)
+  const quarterCategories = allCategories.filter((c) => {
+    if (c.name === "Thưởng" || c.name === "Phạt") return false;
+    return grades.some((g) => g.categoryId === c.id);
+  });
+
+  const activeQuarterCats =
+    quarterCategories.length > 0
+      ? quarterCategories
+      : allCategories.filter((c) => c.name !== "Thưởng" && c.name !== "Phạt");
 
   // Gom điểm theo từng đoàn sinh cho quý này
   const memberGradeMap = new Map();
@@ -329,7 +377,7 @@ async function getTop3MembersByScoreThisYear(user, queryQuarter, queryYear) {
   // Tính điểm tổng quý cho từng đoàn sinh
   const result = Array.from(memberGradeMap.entries()).map(([memberId, data]) => {
     const act = activityMap.get(memberId) || { score: 0 };
-    const baseScore = calculateTotalScoreDynamic(data.scores, categories);
+    const baseScore = calculateTotalScoreDynamic(data.scores, activeQuarterCats);
     const totalScore = Number((baseScore + act.score).toFixed(1));
 
     return {
@@ -384,9 +432,16 @@ async function getRankingThisYear(user) {
     activityMap.set(key, current);
   }
 
-  const categories = await prisma.gradeCategory.findMany({
+  const allCategories = await prisma.gradeCategory.findMany({
     where: { active: true },
   });
+
+  // Gom các category có chấm điểm theo từng quý
+  const quarterCatIdsMap = {};
+  for (const g of grades) {
+    if (!quarterCatIdsMap[g.quarter]) quarterCatIdsMap[g.quarter] = new Set();
+    quarterCatIdsMap[g.quarter].add(g.categoryId);
+  }
 
   const memberQuarterMap = new Map();
   for (const g of grades) {
@@ -417,7 +472,18 @@ async function getRankingThisYear(user) {
       const actKey = `${memberId}_${currentYear}_${qNum}`;
       const act = activityMap.get(actKey) || { score: 0 };
 
-      const baseScore = calculateTotalScoreDynamic(scoresObj, categories);
+      const catIdsInQ = quarterCatIdsMap[qNum];
+      const catsForQ = allCategories.filter((c) => {
+        if (c.name === "Thưởng" || c.name === "Phạt") return false;
+        return catIdsInQ ? catIdsInQ.has(c.id) : true;
+      });
+
+      const activeCats =
+        catsForQ.length > 0
+          ? catsForQ
+          : allCategories.filter((c) => c.name !== "Thưởng" && c.name !== "Phạt");
+
+      const baseScore = calculateTotalScoreDynamic(scoresObj, activeCats);
       const qTotal = baseScore + act.score;
       quarterScores.push(qTotal);
     }
@@ -527,6 +593,7 @@ module.exports = {
   getAllGrades,
   upSertGradeCategory,
   softDeleteGradeCategory,
+  deleteGradeCategory,
   getAllGradeCategory,
   upSertScore,
   deleteScore,

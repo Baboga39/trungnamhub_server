@@ -15,11 +15,13 @@ const gradeCategorySchema = Joi.object({
     }),
 
   weight: Joi.number()
+    .min(0)
+    .max(100)
     .required()
     .messages({
       "number.base": `"weight" must be a number`,
       "number.min": `"weight" must be greater or equal to 0`,
-      "number.max": `"weight" must not exceed 1`
+      "number.max": `"weight" must not exceed 100`
     }),
 
   active: Joi.boolean().optional().allow(null),
