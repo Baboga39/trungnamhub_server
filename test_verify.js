@@ -5,7 +5,7 @@ async function testFinal() {
   try {
     const userContext = {
       id: 7,
-      name: "Trưởng Xứ đoàn",
+      name: "Trưởng Gia Đình Hưng Đạo",
       role: "admin",
       branch: "all",
     };

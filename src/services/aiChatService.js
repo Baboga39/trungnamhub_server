@@ -29,7 +29,7 @@ const toolDeclarations = [
       properties: {
         year: { type: "INTEGER", description: "Năm cần tra cứu (ví dụ: 2026)" },
         quarter: { type: "INTEGER", description: "Quý cần tra cứu (1, 2, 3 hoặc 4)" },
-        branch: { type: "STRING", description: "Tên Ngành (Đồng, Thiếu, Thanh, hoặc 'all' cho toàn xứ đoàn)" },
+        branch: { type: "STRING", description: "Tên Ngành (Đồng, Thiếu, Thanh, hoặc 'all' cho toàn Gia Đình Hưng Đạo)" },
       },
     },
   },
@@ -56,7 +56,7 @@ const toolDeclarations = [
         },
         branch: {
           type: "STRING",
-          description: "Ngành lọc (Đồng, Thiếu, Thanh, hoặc 'all' cho toàn xứ đoàn)",
+          description: "Ngành lọc (Đồng, Thiếu, Thanh, hoặc 'all' cho toàn Gia Đình Hưng Đạo)",
         },
       },
     },
@@ -295,6 +295,41 @@ async function executeTool(toolName, args, userContext) {
           },
         });
 
+        if (members.length === 0) {
+          const matchingUsers = await prisma.user.findMany({
+            where: {
+              active: true,
+              OR: [
+                { name: { contains: query, mode: "insensitive" } },
+                { email: { contains: query, mode: "insensitive" } },
+              ],
+            },
+            take: 3,
+          });
+
+          if (matchingUsers.length > 0) {
+            const formattedLeaders = matchingUsers.map((u) => ({
+              id: u.id,
+              name: u.name,
+              role: u.role || "Huynh Trưởng",
+              branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo",
+              email: u.email,
+              eventsOrganized: u.sumEvent || 0,
+              startYear: u.startYear ? new Date(u.startYear).getFullYear() : "—",
+              isLeader: true,
+            }));
+            return {
+              success: true,
+              data: {
+                count: formattedLeaders.length,
+                isLeader: true,
+                leaders: formattedLeaders,
+                note: `Không tìm thấy đoàn sinh tên '${query}', nhưng tìm thấy thông tin Huynh Trưởng / Ban Quản Trị trong hệ thống.`,
+              },
+            };
+          }
+        }
+
         const formatted = members.map((m) => {
           const totalGrades = m.grades || [];
           let weightedSum = 0;
@@ -374,40 +409,59 @@ async function executeTool(toolName, args, userContext) {
           sessionWhere.branch = branch;
         }
 
-        const sessions = await prisma.session.findMany({
-          where: sessionWhere,
-          take: limit,
-          orderBy: { date: "desc" },
-          include: {
-            attendances: {
-              include: {
-                member: { select: { id: true, name: true, branch: true } },
+        const [sessions, branchMembers] = await Promise.all([
+          prisma.session.findMany({
+            where: sessionWhere,
+            take: limit,
+            orderBy: { date: "desc" },
+            include: {
+              attendances: {
+                include: {
+                  member: { select: { id: true, name: true, branch: true } },
+                },
               },
             },
-          },
-        });
+          }),
+          prisma.member.groupBy({
+            by: ["branch"],
+            where: { active: true },
+            _count: { id: true },
+          }),
+        ]);
+
+        const branchMemberCountMap = {};
+        let totalAllActive = 0;
+        for (const b of branchMembers) {
+          if (b.branch) {
+            branchMemberCountMap[b.branch] = b._count.id;
+          }
+          totalAllActive += b._count.id;
+        }
 
         const data = sessions.map((s) => {
-          const total = s.attendances.length;
-          const present = s.attendances.filter((a) => a.status === "PRESENT").length;
-          const absent = s.attendances.filter((a) => a.status === "ABSENT" || a.status === "ABSENT_WITH_PERMISSION" || a.status === "ABSENT_WITHOUT_PERMISSION").length;
-          const withPerm = s.attendances.filter((a) => a.status === "ABSENT_WITH_PERMISSION").length;
-          const withoutPerm = s.attendances.filter((a) => a.status === "ABSENT_WITHOUT_PERMISSION" || a.status === "ABSENT").length;
-          const absentMembers = s.attendances
-            .filter((a) => a.status !== "PRESENT")
-            .map((a) => `${a.member?.name || "Đoàn sinh"} (${a.status === "ABSENT_WITH_PERMISSION" ? "Có phép" : "Không phép"})`);
+          // Tổng sĩ số dự kiến là tổng số đoàn sinh active trong ngành tại thời điểm sinh hoạt
+          const totalExpected = s.branch && branchMemberCountMap[s.branch] !== undefined ? branchMemberCountMap[s.branch] : totalAllActive;
+          // Database chỉ lưu các bản ghi vắng mặt
+          const absent = s.attendances.length;
+          const present = Math.max(0, totalExpected - absent);
+          const rate = totalExpected > 0 ? ((present / totalExpected) * 100).toFixed(1) + "%" : "100%";
+
+          const withPerm = s.attendances.filter((a) => a.status === "EXCUSED" || a.status === "ABSENT_WITH_PERMISSION").length;
+          const withoutPerm = absent - withPerm;
+          const absentMembers = s.attendances.map((a) => `${a.member?.name || "Đoàn sinh"} (${(a.status === "EXCUSED" || a.status === "ABSENT_WITH_PERMISSION") ? "Có phép" : "Không phép"})`);
 
           return {
             sessionId: s.id,
             date: new Date(s.date).toLocaleDateString("vi-VN"),
-            branch: s.branch || "Toàn đoàn",
-            totalExpected: total,
+            branch: s.branch ? `Ngành ${s.branch}` : "Toàn Gia Đình Hưng Đạo",
+            totalExpected,
             presentCount: present,
             absentCount: absent,
-            attendanceRate: total > 0 ? ((present / total) * 100).toFixed(1) + "%" : "0%",
+            attendanceRate: rate,
             absentWithPermission: withPerm,
             absentWithoutPermission: withoutPerm,
             absentList: absentMembers.slice(0, 10),
+            note: "Hệ thống chỉ lưu trữ danh sách đoàn sinh vắng mặt; số hiện diện = tổng sĩ số active của ngành trừ đi số vắng.",
           };
         });
 
@@ -542,16 +596,30 @@ async function executeTool(toolName, args, userContext) {
         }
 
         // Lấy lịch các buổi sinh hoạt thực tế trong quý từ Core database
-        const sessions = await prisma.session.findMany({
-          where: {
-            date: { gte: startDate, lte: endDate },
-            ...(branch && branch !== "all" ? { branch } : {}),
-          },
-          orderBy: { date: "asc" },
-          include: {
-            attendances: true,
-          },
-        });
+        const [sessions, branchMembers] = await Promise.all([
+          prisma.session.findMany({
+            where: {
+              date: { gte: startDate, lte: endDate },
+              ...(branch && branch !== "all" ? { branch } : {}),
+            },
+            orderBy: { date: "asc" },
+            include: {
+              attendances: true,
+            },
+          }),
+          prisma.member.groupBy({
+            by: ["branch"],
+            where: { active: true },
+            _count: { id: true },
+          }),
+        ]);
+
+        const branchCountMap = {};
+        let totalAllMembers = 0;
+        for (const b of branchMembers) {
+          if (b.branch) branchCountMap[b.branch] = b._count.id;
+          totalAllMembers += b._count.id;
+        }
 
         // Lấy các sự kiện/hoạt động phong trào trong quý từ Core database
         const activities = await prisma.activity.findMany({
@@ -563,13 +631,21 @@ async function executeTool(toolName, args, userContext) {
           },
         });
 
-        const formattedSessions = sessions.map((s) => ({
-          sessionId: s.id,
-          date: new Date(s.date).toLocaleDateString("vi-VN"),
-          branch: s.branch || "Toàn đoàn",
-          attendanceCount: s.attendances.filter((a) => a.status === "PRESENT").length,
-          totalMembers: s.attendances.length,
-        }));
+        const formattedSessions = sessions.map((s) => {
+          const totalExpected = s.branch && branchCountMap[s.branch] !== undefined ? branchCountMap[s.branch] : totalAllMembers;
+          const absent = s.attendances.length;
+          const present = Math.max(0, totalExpected - absent);
+          const rate = totalExpected > 0 ? ((present / totalExpected) * 100).toFixed(1) + "%" : "100%";
+          return {
+            sessionId: s.id,
+            date: new Date(s.date).toLocaleDateString("vi-VN"),
+            branch: s.branch ? `Ngành ${s.branch}` : "Toàn Gia Đình Hưng Đạo",
+            totalExpected,
+            presentCount: present,
+            absentCount: absent,
+            attendanceRate: rate,
+          };
+        });
 
         const formattedActivities = activities.map((a) => ({
           name: a.name,
@@ -583,7 +659,7 @@ async function executeTool(toolName, args, userContext) {
           data: {
             year,
             quarter,
-            branch: branch === "all" ? "Toàn Xứ Đoàn" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`,
             curriculumStatus: programStatus,
             lessonSchedule: programLessons,
             totalWeeklySessions: formattedSessions.length,
@@ -617,8 +693,8 @@ async function executeTool(toolName, args, userContext) {
 
         const formatted = users.map((u) => ({
           name: u.name,
-          role: u.role === "admin" ? "Ban Quản Trị (Admin)" : "Huynh Trưởng",
-          branch: u.branch ? `Ngành ${u.branch}` : "Toàn xứ đoàn",
+          role: u.role || "Huynh Trưởng",
+          branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo",
           email: u.email,
           eventsOrganized: u.sumEvent || 0,
           startYear: u.startYear ? new Date(u.startYear).getFullYear() : "—",
@@ -669,9 +745,9 @@ function buildSystemPrompt(userContext) {
   const currentYear = new Date().getFullYear();
   const currentQuarter = Math.floor(new Date().getMonth() / 3) + 1;
   const userRole = userContext?.role === "admin" ? "Ban Quản Trị (Admin)" : "Huỳnh Trưởng";
-  const branchScope = "Bạn có thể xem toàn bộ dữ liệu tất cả các Ngành (Đồng, Thiếu, Thanh) mà không bị giới hạn. Luôn tra cứu đúng ngành mà người dùng đề cập trong câu hỏi. Nếu không đề cập ngành cụ thể, hãy trả về tổng hợp toàn Xứ Đoàn.";
+  const branchScope = "Bạn có thể xem toàn bộ dữ liệu tất cả các Ngành (Đồng, Thiếu, Thanh) mà không bị giới hạn. Luôn tra cứu đúng ngành mà người dùng đề cập trong câu hỏi. Nếu không đề cập ngành cụ thể, hãy trả về tổng hợp toàn Gia Đình Hưng Đạo.";
 
-  return `Bạn là Trợ lý AI Phân tích Dữ liệu Toàn diện của Trung Nam Hub, hệ thống quản trị Xứ Đoàn Thiếu Nhi Thánh Thể.
+  return `Bạn là Trợ lý AI Phân tích Dữ liệu Toàn diện của Trung Nam Hub, hệ thống quản trị Gia Đình Hưng Đạo Thiếu Nhi Thánh Thể.
 Vai trò người dùng hiện tại: ${userRole}.
 ${branchScope}
 
@@ -744,11 +820,11 @@ async function generateFallbackResponse(message, userContext) {
         .sort((a, b) => b.count - a.count);
 
       if (sorted.length === 0) {
-        return `Hiện chưa có thông tin dữ liệu về ${groupTitle.toLowerCase()} của đoàn sinh (${branch === "all" ? "Toàn Xứ Đoàn" : `Ngành ${branch}`}).`;
+        return `Hiện chưa có thông tin dữ liệu về ${groupTitle.toLowerCase()} của đoàn sinh (${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`}).`;
       }
 
       const top1 = sorted[0];
-      let md = `### 📍 Thống kê phân bố Đoàn sinh theo ${groupTitle} (${branch === "all" ? "Toàn Xứ Đoàn" : `Ngành ${branch}`})\n\n`;
+      let md = `### 📍 Thống kê phân bố Đoàn sinh theo ${groupTitle} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`})\n\n`;
       md += `Đoàn sinh tập trung nhiều nhất tại **${top1.name}** với **${top1.count} em** (${top1.pct}% trên tổng số ${total} đoàn sinh).\n\n`;
       md += `| ${groupTitle} | Số lượng | Tỷ lệ |\n`;
       md += `| :--- | :---: | :---: |\n`;
@@ -803,10 +879,10 @@ async function generateFallbackResponse(message, userContext) {
     if (q.includes("cảnh báo") || q.includes("nguy cơ") || q.includes("vắng nhiều") || q.includes("yếu") || q.includes("kém") || q.includes("nghỉ")) {
       const risks = await executiveDashboardService.getExecutiveRiskMembers(userContext, { year: currentYear, quarter: currentQuarter, branch });
       if (!risks || risks.length === 0) {
-        return `### 🛡️ Tình hình Đoàn sinh diện Cảnh báo (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Xứ Đoàn" : `Ngành ${branch}`})\n\nHiện tại **không có đoàn sinh nào** thuộc diện cảnh báo nguy cơ nghiêm trọng trong phạm vi quản lý của bạn. Tỷ lệ chuyên cần và điểm số duy trì ở mức an toàn! 🎉`;
+        return `### 🛡️ Tình hình Đoàn sinh diện Cảnh báo (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`})\n\nHiện tại **không có đoàn sinh nào** thuộc diện cảnh báo nguy cơ nghiêm trọng trong phạm vi quản lý của bạn. Tỷ lệ chuyên cần và điểm số duy trì ở mức an toàn! 🎉`;
       }
       const topRisks = risks.slice(0, 5);
-      let md = `### ⚠️ Danh sách Đoàn sinh cần chú ý (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Xứ Đoàn" : `Ngành ${branch}`})\n\n`;
+      let md = `### ⚠️ Danh sách Đoàn sinh cần chú ý (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`})\n\n`;
       md += `Hệ thống ghi nhận **${risks.length} đoàn sinh** có dấu hiệu vắng học hoặc điểm số giảm sút:\n\n`;
       md += `| Đoàn sinh | Ngành | Điểm TB | Vắng quy đổi | Lý do chính |\n`;
       md += `| :--- | :--- | :---: | :---: | :--- |\n`;
@@ -821,9 +897,9 @@ async function generateFallbackResponse(message, userContext) {
     if (q.includes("top") || q.includes("cao nhất") || q.includes("xuất sắc") || q.includes("dẫn đầu") || q.includes("thứ hạng") || q.includes("điểm cao")) {
       const topList = await executiveDashboardService.getExecutiveTopMembers(userContext, { year: currentYear, quarter: currentQuarter, branch, sortBy: "overall", limit: 5 });
       if (!topList || topList.length === 0) {
-        return `Chưa có dữ liệu xếp hạng thi đua cho Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Xứ Đoàn" : `Ngành ${branch}`}).`;
+        return `Chưa có dữ liệu xếp hạng thi đua cho Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`}).`;
       }
-      let md = `### 🏆 Top 5 Đoàn sinh xuất sắc nhất (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Xứ Đoàn" : `Ngành ${branch}`})\n\n`;
+      let md = `### 🏆 Top 5 Đoàn sinh xuất sắc nhất (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`})\n\n`;
       md += `| Hạng | Đoàn sinh | Ngành | Tổng điểm | Chuyên cần | Xếp loại |\n`;
       md += `| :---: | :--- | :--- | :---: | :---: | :--- |\n`;
       topList.forEach((m, idx) => {
@@ -838,7 +914,7 @@ async function generateFallbackResponse(message, userContext) {
     if (q.includes("chuyên cần") || q.includes("điểm danh") || q.includes("vắng") || q.includes("xu hướng") || q.includes("buổi sinh hoạt")) {
       const trend = await executiveDashboardService.getExecutiveAttendanceTrend(userContext, { year: currentYear, quarter: currentQuarter, branch });
       if (trend?.history && trend.history.length > 0) {
-        let md = `### 📈 Xu hướng Chuyên cần các buổi sinh hoạt gần nhất (${branch === "all" ? "Toàn Xứ Đoàn" : `Ngành ${branch}`})\n\n`;
+        let md = `### 📈 Xu hướng Chuyên cần các buổi sinh hoạt gần nhất (${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`})\n\n`;
         md += `Tỷ lệ chuyên cần trung bình đạt **${trend.averageRate || 0}%**:\n\n`;
         md += `| Buổi sinh hoạt | Tỷ lệ hiện diện | Số vắng |\n`;
         md += `| :--- | :---: | :---: |\n`;
@@ -868,7 +944,7 @@ async function generateFallbackResponse(message, userContext) {
       md += `| Họ tên | Vai trò | Ngành phụ trách | Email |\n`;
       md += `| :--- | :--- | :--- | :--- |\n`;
       users.forEach((u) => {
-        md += `| **${u.name}** | ${u.role === "admin" ? "BQT (Admin)" : "Huynh Trưởng"} | ${u.branch ? `Ngành ${u.branch}` : "Toàn xứ đoàn"} | \`${u.email}\` |\n`;
+        md += `| **${u.name}** | ${u.role === "admin" ? "BQT (Admin)" : "Huynh Trưởng"} | ${u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo"} | \`${u.email}\` |\n`;
       });
       return md;
     }
@@ -876,7 +952,7 @@ async function generateFallbackResponse(message, userContext) {
     // 8. Tóm tắt / Tổng quan Quý
     if (q.includes("tổng quan") || q.includes("tóm tắt") || q.includes("tình hình") || q.includes("báo cáo") || q.includes("quý này") || q.includes("thống kê") || q.includes("bao nhiêu")) {
       const overview = await executiveDashboardService.getExecutiveOverview(userContext, { year: currentYear, quarter: currentQuarter, branch });
-      return `### 📊 Báo cáo Tổng quan Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Xứ Đoàn" : `Ngành ${branch}`})
+      return `### 📊 Báo cáo Tổng quan Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`})
 
 - **Tổng số Đoàn sinh:** **${overview?.totalMembers?.value || 0}** em (${overview?.totalMembers?.diff >= 0 ? "+" : ""}${overview?.totalMembers?.diff || 0} so với quý trước)
 - **Tỷ lệ Chuyên cần trung bình:** **${overview?.attendanceRate?.value || 0}%** (${overview?.attendanceRate?.diff >= 0 ? "+" : ""}${overview?.attendanceRate?.diff || 0}%)
@@ -1095,7 +1171,7 @@ function getQuickSuggestions(userContext) {
   }
 
   return [
-    "Tóm tắt tình hình Xứ đoàn Quý này",
+    "Tóm tắt tình hình Gia Đình Hưng Đạo Quý này",
     "Tiến độ kế hoạch chương trình sinh hoạt các Ngành",
     "Đoàn sinh ở xã đạo nào nhiều nhất?",
     "So sánh tỷ lệ chuyên cần giữa các Ngành",
