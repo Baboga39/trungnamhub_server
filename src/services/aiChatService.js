@@ -192,14 +192,6 @@ const toolDeclarations = [
     },
   },
   {
-    name: "get_organization_structure",
-    description: "Giới thiệu tổng quan cơ cấu tổ chức Xứ Đoàn / Gia Đình Hưng Đạo, các ngành (Đồng, Thiếu, Thanh), độ tuổi, khẩu hiệu, tôn chỉ, mục tiêu dành cho người mới hoặc người ngoài muốn tìm hiểu.",
-    parameters: {
-      type: "OBJECT",
-      properties: {},
-    },
-  },
-  {
     name: "get_emergency_contact_directory",
     description: "Tra cứu danh bạ liên lạc khẩn cấp (SĐT phụ huynh, họ tên ba mẹ, địa chỉ nhà) của đoàn sinh theo tên hoặc theo ngành/chi đoàn để liên hệ trực tiếp.",
     parameters: {
@@ -317,42 +309,9 @@ const toolDeclarations = [
     },
   },
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // CÁC CÔNG CỤ DÀNH CHO NGƯỜI MỚI / CHƯA BIẾT GÌ VỀ XỨ ĐOÀN (BEGINNER / FAQ)
-  // ─────────────────────────────────────────────────────────────────────────────
-  {
-    name: "get_faqs_and_guidelines",
-    description: "Giải đáp các thắc mắc cơ bản thường gặp dành cho người mới, phụ huynh hoặc khách: giờ giấc sinh hoạt, địa điểm, quy định đồng phục, 4 tôn chỉ TNTT và điều kiện gia nhập Xứ Đoàn.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        topic: { type: "STRING", description: "Chủ đề cần hỏi: 'dong_phuc', 'gio_sinh_hoat', 'ton_chi', 'dang_ky', hoặc 'all'" },
-      },
-    },
-  },
-  {
-    name: "get_branch_curriculum_overview",
-    description: "Giới thiệu tổng quan lộ trình giáo lý, ý nghĩa màu khăn, khẩu hiệu và mục tiêu giáo dục của từng Ngành (Ấu Nhi/Đồng, Thiếu Nhi/Thiếu, Nghĩa Sĩ/Thanh).",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        branch: { type: "STRING", description: "Ngành cần tìm hiểu (Đồng, Thiếu, Thanh, hoặc 'all')" },
-      },
-    },
-  },
   {
     name: "get_leader_to_member_ratio",
     description: "Thống kê tỷ lệ nhân sự Huynh Trưởng trên số lượng Đoàn sinh (Leader-to-Member Ratio) của từng ngành và đánh giá mức độ bao quát nhân sự theo chuẩn sư phạm TNTT.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        branch: { type: "STRING", description: "Ngành lọc (Đồng, Thiếu, Thanh, hoặc 'all')" },
-      },
-    },
-  },
-  {
-    name: "get_liturgical_calendar_and_feasts",
-    description: "Tra cứu thông tin Lễ Bổn mạng của Xứ Đoàn, Quan thầy của từng Ngành (Đồng, Thiếu, Thanh) và các ngày lễ trọng trong năm phụng vụ.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -1110,59 +1069,7 @@ async function executeTool(toolName, args, userContext) {
         };
       }
 
-      // 15. Cơ cấu tổ chức & tôn chỉ Xứ Đoàn (dành cho người mới tìm hiểu)
-      case "get_organization_structure": {
-        const [branchCounts, totalMembers, totalLeaders] = await Promise.all([
-          prisma.member.groupBy({
-            by: ["branch"],
-            where: { active: true },
-            _count: { id: true },
-          }),
-          prisma.member.count({ where: { active: true } }),
-          prisma.user.count({ where: { active: true } }),
-        ]);
-
-        const branchMap = {};
-        branchCounts.forEach((b) => {
-          if (b.branch) branchMap[b.branch] = b._count.id;
-        });
-
-        return {
-          success: true,
-          data: {
-            organizationName: "Gia Đình Hưng Đạo - Thiếu Nhi Thánh Thể",
-            coreMission: "Giáo dục đức tin, nhân bản và kỹ năng sống cho thanh thiếu nhi theo tinh thần Phúc Âm và phong trào TNTT.",
-            totalActiveMembers: totalMembers,
-            totalLeaders: totalLeaders,
-            branches: [
-              {
-                branchName: "Ngành Đồng (Ấu Nhi)",
-                ageRange: "7 - 9 tuổi",
-                motto: "Vâng Lời",
-                description: "Tập trung rèn luyện tính vâng phục, lễ phép, đức tính đơn sơ và sinh hoạt tập thể vui tươi.",
-                activeMembers: branchMap["Đồng"] || 0,
-              },
-              {
-                branchName: "Ngành Thiếu (Thiếu Nhi)",
-                ageRange: "10 - 15 tuổi",
-                motto: "Hy Sinh",
-                description: "Rèn luyện tinh thần hy sinh, học hỏi giáo lý chuyên sâu, phát triển kỹ năng lều trại, nút dây, sơ cấp cứu và làm việc nhóm.",
-                activeMembers: branchMap["Thiếu"] || 0,
-              },
-              {
-                branchName: "Ngành Thanh (Nghĩa Sĩ / Hiệp Sĩ)",
-                ageRange: "16+ tuổi",
-                motto: "Chinh Phục / Dấn Thân",
-                description: "Định hướng lý tưởng sống, tinh thần phục vụ tha nhân, sẵn sàng trở thành trợ tá và huynh trưởng tương lai.",
-                activeMembers: branchMap["Thanh"] || 0,
-              },
-            ],
-            leadershipStructure: "Ban Quản Trị (Xứ Đoàn Trưởng, Xứ Đoàn Phó) phối hợp cùng Trưởng/Phó các Ngành điều hành mọi sinh hoạt và học tập.",
-          },
-        };
-      }
-
-      // 16. Danh bạ liên lạc khẩn cấp phụ huynh
+      // 15. Danh bạ liên lạc khẩn cấp phụ huynh
       case "get_emergency_contact_directory": {
         const query = (args.query || "").trim();
         const limit = args.limit ? Number(args.limit) : 10;
@@ -1619,77 +1526,7 @@ async function executeTool(toolName, args, userContext) {
         };
       }
 
-      // 27. FAQ & Hướng dẫn cơ bản cho người mới / phụ huynh
-      case "get_faqs_and_guidelines": {
-        const topic = args.topic || "all";
-        const faqs = {
-          gio_sinh_hoat: {
-            title: "⏰ Giờ giấc & Lịch sinh hoạt",
-            content: "Chúa Nhật hàng tuần: 07h45 - 08h00: Tập trung điểm danh; 08h00 - 09h00: Học Giáo lý & Kỹ năng TNTT; 09h15 - 10h15: Thánh Lễ Thiếu Nhi toàn Xứ Đoàn.",
-          },
-          dong_phuc: {
-            title: "👔 Quy định Đồng phục TNTT",
-            content: "Áo sơ mi trắng có cầu vai và túi áo; Khăn quàng theo màu ngành (Ngành Đồng: viền xanh lá; Ngành Thiếu: viền xanh biển; Ngành Thanh: viền vàng/đỏ); Quần sẫm màu (xanh đen/đen); Mang giày bata hoặc sandal có quai hậu.",
-          },
-          ton_chi: {
-            title: "✝️ 4 Tôn chỉ Phong trào TNTT",
-            content: "1. Cầu nguyện (Sống kết hiệp với Chúa Giêsu Thánh Thể) | 2. Rước Lễ (Siêng năng tham dự Thánh Lễ) | 3. Hy sinh (Vâng lời cha mẹ, giúp đỡ bạn bè) | 4. Làm tông đồ (Gương mẫu, loan báo Tin Mừng bằng hành động bác ái).",
-          },
-          dang_ky: {
-            title: "📝 Điều kiện & Cách thức gia nhập",
-            content: "Đoàn sinh từ 6 tuổi trở lên (đã hoặc đang chuẩn bị Rước Lễ Lần Đầu). Phụ huynh có thể liên hệ trực tiếp Ban Quản Trị hoặc Huynh Trưởng phụ trách ngành vào đầu mỗi niên khóa (Tháng 8 - Tháng 9 hàng năm).",
-          },
-        };
-
-        return {
-          success: true,
-          data: {
-            topic,
-            information: topic === "all" ? Object.values(faqs) : [faqs[topic] || faqs.gio_sinh_hoat],
-          },
-        };
-      }
-
-      // 28. Tổng quan lộ trình giáo lý và tôn chỉ các ngành
-      case "get_branch_curriculum_overview": {
-        const branchCurriculum = {
-          Đồng: {
-            branch: "Ngành Đồng (Ấu Nhi)",
-            age: "6 - 9 tuổi",
-            scarfColor: "Khăn viền Xanh Lá Cây (Tượng trưng cho mầm non, sự tươi trẻ và hy vọng)",
-            motto: "VÂNG LỜI",
-            coreAims: "Học làm con ngoan của Chúa và gia đình; rèn luyện tính vâng lời cha mẹ, thầy cô và Huynh trưởng; tiếp cận những câu chuyện Phúc Âm sinh động.",
-          },
-          Thiếu: {
-            branch: "Ngành Thiếu (Thiếu Nhi)",
-            age: "10 - 12 tuổi",
-            scarfColor: "Khăn viền Xanh Biển (Tượng trưng cho bầu trời hy vọng, sự thanh khiết và bao la)",
-            motto: "HY SINH",
-            coreAims: "Rèn luyện tính tự lập, làm việc đội nhóm (hàng đội), sẵn sàng hy sinh lợi ích cá nhân vì tập thể; học giáo lý xưng tội rước lễ và thêm sức.",
-          },
-          Thanh: {
-            branch: "Ngành Thanh (Nghĩa Sĩ / Hiệp Sĩ)",
-            age: "13 - 15+ tuổi",
-            scarfColor: "Khăn viền Vàng / Đỏ (Tượng trưng cho ánh sáng chân lý và ngọn lửa nhiệt huyết tông đồ)",
-            motto: "CHINH PHỤC & DẤN THÂN",
-            coreAims: "Trưởng thành đức tin, tôi luyện bản lĩnh người Kitô hữu giữa đời; định hướng lý tưởng sống và tham gia phụng sự cộng đoàn Xã đạo.",
-          },
-        };
-
-        const result = branch === "all"
-          ? Object.values(branchCurriculum)
-          : [branchCurriculum[branch] || branchCurriculum["Thiếu"]];
-
-        return {
-          success: true,
-          data: {
-            branchScope: branch === "all" ? "Toàn bộ 3 Ngành" : `Ngành ${branch}`,
-            overview: result,
-          },
-        };
-      }
-
-      // 29. Tỷ lệ Huynh Trưởng / Đoàn sinh (Leader-to-Member Ratio)
+      // 26. Tỷ lệ Huynh Trưởng / Đoàn sinh (Leader-to-Member Ratio)
       case "get_leader_to_member_ratio": {
         const [leaders, members] = await Promise.all([
           prisma.user.findMany({ where: { role: { not: "admin" } }, select: { branch: true } }),
@@ -1730,50 +1567,7 @@ async function executeTool(toolName, args, userContext) {
         };
       }
 
-      // 30. Lịch Phụng vụ & Quan thầy Bổn mạng Xứ đoàn và các ngành
-      case "get_liturgical_calendar_and_feasts": {
-        const feasts = [
-          {
-            entity: "Gia Đình Hưng Đạo (Toàn Xứ Đoàn)",
-            patronSaint: "Các Thánh Tử Đạo Việt Nam",
-            feastDate: "24 Tháng 11 hàng năm",
-            significance: "Noi gương lòng trung kiên làm chứng cho đức tin và tinh thần yêu nước của các vị tiền nhân.",
-          },
-          {
-            entity: "Ngành Đồng (Ấu Nhi)",
-            patronSaint: "Chúa Hài Đồng & Các Thiên Thần Bản Mệnh",
-            feastDate: "02 Tháng 10 hàng năm",
-            significance: "Gương đơn sơ, trong trắng và vâng lời Chúa Cha.",
-          },
-          {
-            entity: "Ngành Thiếu (Thiếu Nhi)",
-            patronSaint: "Thánh Đaminh Saviô & Thánh Têrêsa Hài Đồng Giêsu",
-            feastDate: "06 Tháng 05 (Đaminh Saviô) & 01 Tháng 10 (Têrêsa)",
-            significance: "Tinh thần hy sinh làm việc nhỏ với tình yêu lớn: 'Thà chết chứ không phạm tội'.",
-          },
-          {
-            entity: "Ngành Thanh (Nghĩa Sĩ / Hiệp Sĩ)",
-            patronSaint: "Thánh Gioan Baotixita & Thánh Phaolô Tông Đồ",
-            feastDate: "24 Tháng 06 (Gioan Baotixita) & 29 Tháng 06 (Phaolô)",
-            significance: "Lý tưởng dấn thân, can đảm mở đường và nhiệt thành làm chứng tá cho Tin Mừng.",
-          },
-          {
-            entity: "Ban Huynh Trưởng",
-            patronSaint: "Thánh Gioan Bosco (Don Bosco)",
-            feastDate: "31 Tháng 01 hàng năm",
-            significance: "Bậc thầy của phương pháp giáo dục giới trẻ bằng tình yêu thương và đồng hành.",
-          },
-        ];
-
-        return {
-          success: true,
-          data: {
-            feasts,
-          },
-        };
-      }
-
-      // 31. Sức khỏe cơ sở dữ liệu & Mức độ hoàn thiện hồ sơ
+      // 27. Sức khỏe cơ sở dữ liệu & Mức độ hoàn thiện hồ sơ
       case "get_system_health_and_data_summary": {
         const [activeCount, inactiveCount, allMembers, sessionCount, gradeCount] = await Promise.all([
           prisma.member.count({ where: { active: true } }),
@@ -1831,36 +1625,74 @@ async function executeTool(toolName, args, userContext) {
         };
       }
 
-      // 33. Tìm các cặp anh chị em ruột trong gia đình
+      // 33. Tìm các cặp anh chị em ruột trong gia đình (dựa trên Cùng Tên Cha, Cùng Tên Mẹ hoặc Cùng SĐT Phụ Huynh)
       case "get_sibling_family_groups": {
         const members = await prisma.member.findMany({
           where: { active: true },
           select: { id: true, name: true, branch: true, group: true, contact: true, fatherName: true, motherName: true, address: true, birthDate: true },
         });
 
-        const phoneMap = {};
+        const normalize = (str) => {
+          if (!str || str === "-" || !str.trim()) return "";
+          return str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+        };
+
+        // Nhóm theo Khóa cha mẹ hoặc SĐT
+        const familyMap = {};
+
         for (const m of members) {
-          const key = m.contact && m.contact.length >= 7 ? m.contact.replace(/\D/g, "") : null;
+          const f = normalize(m.fatherName);
+          const mo = normalize(m.motherName);
+          const phone = (m.contact || "").replace(/\D/g, "");
+
+          let key = "";
+          if (f && mo) {
+            key = `f_${f}__m_${mo}`;
+          } else if (f && f.length >= 3) {
+            key = `f_${f}`;
+          } else if (mo && mo.length >= 3) {
+            key = `m_${mo}`;
+          } else if (phone && phone.length >= 7) {
+            key = `phone_${phone}`;
+          }
+
           if (key) {
-            if (!phoneMap[key]) phoneMap[key] = [];
-            phoneMap[key].push(m);
+            if (!familyMap[key]) familyMap[key] = [];
+            // Tránh trùng lặp đoàn sinh trong cùng 1 nhóm
+            if (!familyMap[key].some((x) => x.id === m.id)) {
+              familyMap[key].push(m);
+            }
           }
         }
 
-        const siblingGroups = Object.entries(phoneMap)
+        const siblingGroups = Object.entries(familyMap)
           .filter(([, list]) => list.length >= 2)
-          .map(([phone, list]) => ({
-            familyContact: phone,
-            parentName: list[0].fatherName || list[0].motherName || "Chưa cập nhật",
-            address: list[0].address || "—",
-            childrenCount: list.length,
-            children: list.map((c) => ({
-              name: c.name,
-              branch: `Ngành ${c.branch}`,
-              group: c.group || "—",
-              birthYear: c.birthDate ? new Date(c.birthDate).getFullYear() : "—",
-            })),
-          }))
+          .map(([, list]) => {
+            const first = list[0];
+            const father = list.find((x) => x.fatherName && x.fatherName !== "-")?.fatherName;
+            const mother = list.find((x) => x.motherName && x.motherName !== "-")?.motherName;
+            const parentName = [father ? `Bố: ${father}` : "", mother ? `Mẹ: ${mother}` : ""].filter(Boolean).join(" & ") || "Chưa cập nhật";
+            const contact = list.find((x) => x.contact && x.contact !== "-")?.contact || "—";
+            const address = list.find((x) => x.address && x.address !== "-")?.address || "—";
+
+            return {
+              parentName,
+              familyContact: contact,
+              address,
+              childrenCount: list.length,
+              children: list.map((c) => {
+                const birthYear = c.birthDate ? new Date(c.birthDate).getFullYear() : null;
+                const age = birthYear ? currentYear - birthYear : null;
+                return {
+                  name: c.name,
+                  branch: `Ngành ${c.branch}`,
+                  group: c.group || "—",
+                  birthYear: birthYear || "—",
+                  age: age ? `${age} tuổi` : "—",
+                };
+              }),
+            };
+          })
           .sort((a, b) => b.childrenCount - a.childrenCount);
 
         return {
@@ -1868,7 +1700,8 @@ async function executeTool(toolName, args, userContext) {
           data: {
             totalFamiliesWithMultipleChildren: siblingGroups.length,
             totalChildrenInSiblingGroups: siblingGroups.reduce((acc, g) => acc + g.childrenCount, 0),
-            families: siblingGroups.slice(0, 10),
+            note: "Dữ liệu được xác định tự động dựa trên trùng khớp Họ tên Bố/Mẹ và Số điện thoại liên hệ.",
+            families: siblingGroups,
           },
         };
       }
@@ -2266,19 +2099,18 @@ function buildSystemPrompt(userContext) {
 Vai trò người dùng hiện tại: ${userRole}.
 ${branchScope}
 
-Khả năng đáp ứng đa vai trò (Dual-Persona Support):
-- 🟢 Người mới / Chưa biết gì (Beginner / Phụ huynh / Khách): Cung cấp hướng dẫn dễ hiểu, thân thiện, giải thích các thuật ngữ TNTT, giờ giấc sinh hoạt, đồng phục, tôn chỉ, cơ cấu ngành và quan thầy bổn mạng.
-- 🔵 Người có chuyên môn / Quản trị viên (Auditor / Thư ký / Huynh trưởng lâu năm): Cung cấp các phân tích số liệu sâu, bảng biểu so sánh, tỷ lệ chuẩn bị giáo án, phát hiện điểm bất thường, rà soát nhân sự chưa phân công, tìm liên hệ gia đình anh chị em và xuất thẻ kiểm toán 360 độ.
+Nguyên tắc bắt buộc:
+1. 100% DỮ LIỆU THỰC TẾ TỪ DATABASE: Mọi thông tin (độ tuổi, năm sinh, sĩ số, chuyên cần, điểm số, nhân sự, giáo án, phê duyệt) BẮT BUỘC phải gọi Công cụ (AI Tools) để truy vấn từ cơ sở dữ liệu. Tuyệt đối không tự suy diễn hoặc dùng kiến thức lý thuyết chung ngoài đời.
+2. Khi người dùng hỏi về ĐỘ TUỔI, NĂM SINH, CƠ CẤU NHÂN KHẨU (ví dụ: "các bạn độ tuổi từ bao nhiêu đến bao nhiêu", "bao nhiêu tuổi", "sinh năm mấy"): BẮT BUỘC gọi công cụ \`get_member_demographics\` với tham số \`groupBy: 'birthYear'\` để tính toán độ tuổi thực tế từ Database.
 
-Hệ thống 40 Công cụ (AI Tools) chuyên sâu bạn sở hữu:
+Danh sách 36 Công cụ (AI Tools) chuyên sâu bạn sở hữu:
 1. 📊 Điều hành & Tổng quan: \`get_executive_overview\`, \`get_branch_performance\`, \`get_yearly_summary_report\`, \`get_system_health_and_data_summary\`
-2. 👥 Nhân sự & Quản trị Đoàn sinh: \`search_member_profile\`, \`get_member_demographics\`, \`get_emergency_contact_directory\`, \`get_sibling_family_groups\`, \`get_inactive_and_dropped_members\`, \`get_unassigned_members_and_leaders\`, \`get_comprehensive_member_audit_card\`
-3. ✝️ Hướng dẫn cơ bản & Sư phạm TNTT: \`get_faqs_and_guidelines\`, \`get_branch_curriculum_overview\`, \`get_organization_structure\`, \`get_liturgical_calendar_and_feasts\`, \`get_branch_contact_representatives\`, \`get_leader_to_member_ratio\`
-4. 📈 Chuyên cần & Điểm danh: \`get_attendance_analytics\`, \`get_attendance_streak_leaderboard\`, \`get_consecutive_absent_alerts\`, \`get_session_detailed_history\`, \`get_attendance_by_day_of_week\`
-5. 📚 Học tập, Giáo lý & Điểm số: \`get_subject_grades_analytics\`, \`get_grade_distribution_summary\`, \`get_grade_outliers_and_anomalies\`, \`get_scoring_rules_and_weights\`, \`get_top_performers\`, \`get_at_risk_members\`
-6. 📖 Kế hoạch sinh hoạt, Giáo án & Phê duyệt: \`get_quarter_programs\`, \`get_lesson_preparation_readiness\`, \`get_documents_and_approvals\`
-7. ⛺ Sự kiện, Ngoại khóa & Thăng tiến: \`get_activities_summary\`, \`get_upcoming_events\`, \`get_member_activity_history\`, \`get_promotion_and_new_members\`, \`get_quarterly_birthdays\`
-8. 👔 Ban Huynh Trưởng & Đội nhóm: \`get_leaders_directory\`, \`get_leaders_contribution_stats\`, \`get_group_squad_distribution\`, \`get_church_parish_breakdown\`
+2. 👥 Nhân sự & Quản trị Đoàn sinh: \`get_member_demographics\`, \`search_member_profile\`, \`get_emergency_contact_directory\`, \`get_sibling_family_groups\`, \`get_inactive_and_dropped_members\`, \`get_unassigned_members_and_leaders\`, \`get_comprehensive_member_audit_card\`
+3. 📈 Chuyên cần & Điểm danh: \`get_attendance_analytics\`, \`get_attendance_streak_leaderboard\`, \`get_consecutive_absent_alerts\`, \`get_session_detailed_history\`, \`get_attendance_by_day_of_week\`, \`get_attendance_trend\`, \`get_session_attendance_details\`
+4. 📚 Học tập & Điểm số: \`get_subject_grades_analytics\`, \`get_grade_distribution_summary\`, \`get_grade_outliers_and_anomalies\`, \`get_scoring_rules_and_weights\`, \`get_top_members\`, \`get_top_performers\`, \`get_risk_members\`, \`get_at_risk_members\`
+5. 📖 Kế hoạch sinh hoạt, Giáo án & Phê duyệt: \`get_quarter_programs\`, \`get_lesson_preparation_readiness\`, \`get_documents_and_approvals\`
+6. ⛺ Sự kiện, Ngoại khóa & Thăng tiến: \`get_activities_summary\`, \`get_upcoming_events\`, \`get_member_activity_history\`, \`get_promotion_and_new_members\`, \`get_quarterly_birthdays\`
+7. 👔 Ban Huynh Trưởng & Đội nhóm: \`get_leaders_directory\`, \`get_leaders_contribution_stats\`, \`get_group_squad_distribution\`, \`get_church_parish_breakdown\`, \`get_branch_contact_representatives\`, \`get_leader_to_member_ratio\`
 
 Phong cách trả lời:
 - Trả lời bằng tiếng Việt tự nhiên, chuẩn mực, đúng trọng tâm câu hỏi.
@@ -2781,6 +2613,4 @@ function getQuickSuggestions(userContext) {
 module.exports = {
   processChatMessage,
   getQuickSuggestions,
-  executeTool,
-  toolDeclarations,
 };
