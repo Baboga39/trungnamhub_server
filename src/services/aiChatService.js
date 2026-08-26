@@ -169,11 +169,11 @@ const toolDeclarations = [
   },
   {
     name: "get_documents_and_approvals",
-    description: "Thống kê danh sách tài liệu, tờ trình, văn bản lưu trữ và tiến độ phê duyệt (PENDING, APPROVED, NEED_REVISION).",
+    description: "Thống kê danh sách các Chương trình sinh hoạt Quý (Quarter Programs), tài liệu, tờ trình và tiến độ phê duyệt (PENDING/chờ duyệt, APPROVED/đã duyệt, NEED_REVISION/cần sửa, DRAFT/nháp) của các ngành.",
     parameters: {
       type: "OBJECT",
       properties: {
-        status: { type: "STRING", description: "Trạng thái lọc: 'PENDING', 'APPROVED', 'NEED_REVISION', hoặc 'all'" },
+        status: { type: "STRING", description: "Trạng thái lọc: 'PENDING' (chờ duyệt), 'APPROVED' (đã duyệt), 'NEED_REVISION' (cần sửa), 'DRAFT' (bản nháp), hoặc 'all'" },
       },
     },
   },
@@ -840,9 +840,11 @@ async function executeTool(toolName, args, userContext) {
         return { success: true, data: { count: formatted.length, leaders: formatted } };
       }
 
-      // 13. Danh sách tài liệu & tờ trình
+      // 13. Danh sách chương trình sinh hoạt quý, tài liệu & tờ trình chờ duyệt
       case "get_documents_and_approvals": {
         const statusFilter = args.status && args.status !== "all" ? args.status : undefined;
+        
+        // 1. Lấy tài liệu / tờ trình từ Core database
         const docs = await prisma.document.findMany({
           where: statusFilter ? { status: statusFilter } : {},
           take: 10,
@@ -853,8 +855,9 @@ async function executeTool(toolName, args, userContext) {
           },
         });
 
-        const data = docs.map((d) => ({
+        const docData = docs.map((d) => ({
           id: d.id,
+          type: "Tài liệu / Tờ trình",
           title: d.title,
           status: d.status,
           version: d.version,
@@ -863,7 +866,61 @@ async function executeTool(toolName, args, userContext) {
           date: new Date(d.createdAt).toLocaleDateString("vi-VN"),
         }));
 
-        return { success: true, data: { count: docs.length, documents: data } };
+        // 2. Lấy danh sách Chương trình giáo lý / Kế hoạch sinh hoạt quý từ Program microservice
+        let programData = [];
+        try {
+          const serviceToken = jwt.sign(
+            {
+              userId: userContext?.id || 1,
+              email: userContext?.email || "ai-agent@trungnam.org",
+              role: userContext?.role || "admin",
+              branch: userContext?.branch || null,
+            },
+            JWT_SECRET,
+            { expiresIn: "1h" }
+          );
+
+          const progRes = await axios.get(`${PROGRAM_SERVER_URL}/api/v1/programs`, {
+            params: statusFilter ? { status: statusFilter } : {},
+            headers: { Authorization: `Bearer ${serviceToken}` },
+            timeout: 10000,
+          });
+
+          const programs = progRes.data?.data || progRes.data || [];
+          if (Array.isArray(programs)) {
+            programData = programs.map((p) => {
+              const bName = p.branch?.name || p.branchId || "Ngành";
+              return {
+                id: p.id,
+                type: "Chương trình sinh hoạt Quý",
+                title: `Chương trình sinh hoạt Quý ${p.quarter}/${p.year} - ${bName.startsWith("Ngành") ? bName : `Ngành ${bName}`}`,
+                status: p.status,
+                branch: bName,
+                year: p.year,
+                quarter: p.quarter,
+                lessonCount: p.lessonCount || 0,
+                createdBy: p.createdBy ? `Huynh Trưởng #${p.createdBy}` : "—",
+                date: new Date(p.createdAt).toLocaleDateString("vi-VN"),
+              };
+            });
+          }
+        } catch (err) {
+          console.warn("Could not query Program Service for approvals:", err.message);
+        }
+
+        const pendingPrograms = programData.filter((p) => p.status === "PENDING");
+        const pendingDocs = docData.filter((d) => d.status === "PENDING");
+
+        return {
+          success: true,
+          data: {
+            totalPendingCount: pendingPrograms.length + pendingDocs.length,
+            pendingQuarterPrograms: pendingPrograms,
+            allQuarterPrograms: programData,
+            documents: docData,
+            summaryMessage: `Hệ thống ghi nhận có ${pendingPrograms.length} chương trình sinh hoạt quý và ${pendingDocs.length} tài liệu đang ở trạng thái chờ duyệt (PENDING).`,
+          },
+        };
       }
 
       // 14. Danh sách sinh nhật đoàn sinh theo Quý / Tháng
