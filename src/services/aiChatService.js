@@ -261,10 +261,11 @@ const toolDeclarations = [
   },
   {
     name: "get_promotion_and_new_members",
-    description: "Thống kê danh sách đoàn sinh mới gia nhập gần đây và lịch sử chuyển ngành, thăng cấp bậc trong Xứ Đoàn.",
+    description: "Thống kê danh sách đoàn sinh mới gia nhập theo năm sinh hoạt (dựa trên trường startYear / startDate trong DB) và lịch sử thăng cấp / chuyển ngành của đoàn sinh.",
     parameters: {
       type: "OBJECT",
       properties: {
+        year: { type: "INTEGER", description: "Năm gia nhập cần lọc (ví dụ: 2026, 2025, hoặc bỏ trống để lấy tất cả)" },
         branch: { type: "STRING", description: "Ngành lọc (Đồng, Thiếu, Thanh, hoặc 'all')" },
       },
     },
@@ -1355,36 +1356,69 @@ async function executeTool(toolName, args, userContext) {
 
       // 22. Thống kê đoàn sinh mới gia nhập & lịch sử chuyển ngành
       case "get_promotion_and_new_members": {
-        const [promotions, newMembers] = await Promise.all([
+        const filterYear = args.year ? Number(args.year) : null;
+        const memberWhere = {
+          active: true,
+          ...(branch && branch !== "all" ? { branch } : {}),
+        };
+
+        if (filterYear) {
+          memberWhere.OR = [
+            { startYear: filterYear },
+            {
+              startDate: {
+                gte: new Date(filterYear, 0, 1),
+                lte: new Date(filterYear, 11, 31, 23, 59, 59),
+              },
+            },
+          ];
+        }
+
+        const promoWhere = {};
+        if (filterYear) {
+          promoWhere.date = {
+            gte: new Date(filterYear, 0, 1),
+            lte: new Date(filterYear, 11, 31, 23, 59, 59),
+          };
+        }
+
+        const [promotions, newMembers, totalJoinedInYear] = await Promise.all([
           prisma.memberStatusHistory.findMany({
-            take: 10,
+            where: promoWhere,
+            take: 15,
             orderBy: { date: "desc" },
             include: { member: { select: { id: true, name: true, branch: true } } },
           }),
           prisma.member.findMany({
-            where: { active: true, ...(branch && branch !== "all" ? { branch } : {}) },
-            take: 10,
-            orderBy: { createdAt: "desc" },
-            select: { id: true, name: true, branch: true, group: true, parish: true, createdAt: true },
+            where: memberWhere,
+            take: 20,
+            orderBy: [{ startYear: "desc" }, { startDate: "desc" }, { name: "asc" }],
+            select: { id: true, name: true, branch: true, group: true, parish: true, startYear: true, startDate: true },
           }),
+          filterYear ? prisma.member.count({ where: memberWhere }) : null,
         ]);
 
         return {
           success: true,
           data: {
-            recentPromotions: promotions.map((p) => ({
-              memberName: p.member?.name || "Đoàn sinh",
-              type: p.type,
-              date: new Date(p.date).toLocaleDateString("vi-VN"),
-              fromBranch: p.fromBranch || "—",
-              toBranch: p.toBranch || "—",
-            })),
+            filterYear: filterYear || "Tất cả các năm gần đây",
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`,
+            totalEnrolledInYear: filterYear ? totalJoinedInYear : newMembers.length,
             newlyEnrolledMembers: newMembers.map((m) => ({
               memberName: m.name,
               branch: m.branch ? `Ngành ${m.branch}` : "—",
               group: m.group || "—",
               parish: m.parish || "—",
-              enrolledDate: new Date(m.createdAt).toLocaleDateString("vi-VN"),
+              startYear: m.startYear ? `Năm ${m.startYear}` : "—",
+              startDate: m.startDate ? new Date(m.startDate).toLocaleDateString("vi-VN") : "Chưa cập nhật ngày",
+            })),
+            recentPromotions: promotions.map((p) => ({
+              memberName: p.member?.name || "Đoàn sinh",
+              type: p.type === "BRANCH_PROMOTED" ? "Thăng cấp lên ngành" : p.type,
+              date: p.date ? new Date(p.date).toLocaleDateString("vi-VN") : "—",
+              fromBranch: p.fromBranch ? `Ngành ${p.fromBranch}` : "—",
+              toBranch: p.toBranch ? `Ngành ${p.toBranch}` : "—",
+              note: p.note || "—",
             })),
           },
         };
