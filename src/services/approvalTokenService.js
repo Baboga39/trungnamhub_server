@@ -212,9 +212,10 @@ async function createApprovalToken(documentId, reviewerIds, senderUser, tx = pri
 
   const result = await tx.approvalToken.createMany({ data: tokens });
 
+  const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/+$/, "");
   const links = tokens.map((t) => ({
     reviewerId: t.reviewerId,
-    link: `${process.env.FRONTEND_URL}/approve?token=${t.token}`,
+    link: `${frontendUrl}/approve?token=${t.token}`,
   }));
 
   const reviewers = await tx.user.findMany({

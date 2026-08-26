@@ -10,6 +10,7 @@ const reportRoutes = require("./reportRoutes");
 const documentRoutes = require("./documentRoute");
 const fileRoutes = require("./fileRoute");
 const dinnerRoute = require("./external");
+const aiChatRoutes = require("./aiChatRoutes");
 
 module.exports = (app) => {
   // User
@@ -36,4 +37,6 @@ module.exports = (app) => {
   app.use("/api/v1/files", fileRoutes);
 
   app.use("/api/v1/dinner", dinnerRoute);
+
+  app.use("/api/v1/ai", aiChatRoutes);
 };
