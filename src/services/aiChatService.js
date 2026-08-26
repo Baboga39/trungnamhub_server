@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const executiveDashboardService = require("./executiveDashboardService");
 const dashboardService = require("./dashboardService");
 const prisma = require("../libs/prisma");
+const { normalizeUserQuery } = require("../libs/aiQueryNormalizer");
 
 const JWT_SECRET = process.env.JWT_SECRET || "TrungnamHub";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
@@ -1757,7 +1758,63 @@ async function callGeminiApi(payload) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6. MAIN CHAT PROCESSING FUNCTION
+// 6. FORMAT TOOL RESULT TO MARKDOWN HELPER (Robust Fallback)
+// ─────────────────────────────────────────────────────────────────────────────
+function formatToolResultToMarkdown(toolName, result) {
+  if (!result || !result.success || !result.data) {
+    return result?.error ? `Lỗi tra cứu: ${result.error}` : "Đã tra cứu dữ liệu nhưng không tìm thấy thông tin phù hợp.";
+  }
+
+  const d = result.data;
+
+  switch (toolName) {
+    case "get_documents_and_approvals": {
+      const qProgs = d.quarterPrograms || d.allQuarterPrograms || [];
+      const docs = d.documents || [];
+      let md = `### 📄 Tình trạng Phê duyệt Chương trình & Tài liệu\n\n`;
+      if (qProgs.length > 0) {
+        md += `#### 📋 Danh sách Chương trình sinh hoạt Quý:\n`;
+        md += `| Tên chương trình | Ngành | Trạng thái | Số bài học | Ngày gửi |\n`;
+        md += `| :--- | :--- | :---: | :---: | :---: |\n`;
+        qProgs.forEach((p) => {
+          const stBadge = p.status === "APPROVED" ? "✅ Đã duyệt" : p.status === "PENDING" ? "⏳ Chờ duyệt" : p.status === "NEED_REVISION" ? "⚠️ Cần sửa" : "📝 Bản nháp";
+          md += `| **${p.title}** | ${p.branch} | ${stBadge} | ${p.lessonCount || 0} bài | ${p.date} |\n`;
+        });
+        md += `\n`;
+      }
+      if (docs.length > 0) {
+        md += `#### 📑 Danh sách Tài liệu / Tờ trình:\n`;
+        md += `| Tiêu đề | Trạng thái | Phiên bản | Người tạo | Ngày |\n`;
+        md += `| :--- | :---: | :---: | :--- | :---: |\n`;
+        docs.forEach((doc) => {
+          const stBadge = doc.status === "APPROVED" ? "✅ Đã duyệt" : doc.status === "PENDING" ? "⏳ Chờ duyệt" : doc.status === "NEED_REVISION" ? "⚠️ Cần sửa" : "📝 Bản nháp";
+          md += `| **${doc.title}** | ${stBadge} | v${doc.version} | ${doc.createdBy} | ${doc.date} |\n`;
+        });
+      }
+      if (qProgs.length === 0 && docs.length === 0) {
+        md += `Hiện không có chương trình hay tài liệu nào phù hợp với điều kiện tìm kiếm.`;
+      }
+      return md;
+    }
+    case "get_quarterly_birthdays": {
+      const bdays = d.birthdays || [];
+      if (bdays.length === 0) return `Hiện chưa ghi nhận đoàn sinh nào có sinh nhật trong thời gian này (${d.branch}).`;
+      let md = `### 🎂 Danh sách Đoàn sinh Sinh nhật (${d.branch})\n\n`;
+      md += `| Ngày sinh | Đoàn sinh | Ngành | Chi đoàn/Đội | Xã đạo/Giáo xứ | Tuổi mới |\n`;
+      md += `| :---: | :--- | :--- | :--- | :--- | :---: |\n`;
+      bdays.forEach((b) => {
+        md += `| **${b.birthDate}** | **${b.name}** | ${b.branch} | ${b.group} | ${b.parish} | ${b.age ? `${b.age} tuổi` : "—"} |\n`;
+      });
+      return md;
+    }
+    default: {
+      return `Dưới đây là kết quả tra cứu dữ liệu thực tế từ hệ thống:\n\n` + (d.summaryMessage || JSON.stringify(d, null, 2));
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. MAIN CHAT PROCESSING FUNCTION
 // ─────────────────────────────────────────────────────────────────────────────
 async function processChatMessage({ message, history = [], userContext }) {
   if (!message || typeof message !== "string" || !message.trim()) {
@@ -1765,11 +1822,15 @@ async function processChatMessage({ message, history = [], userContext }) {
   }
 
   const trimmedMessage = message.trim();
+  const normalizedMessage = normalizeUserQuery(trimmedMessage) || trimmedMessage;
+  if (normalizedMessage !== trimmedMessage) {
+    console.log(`🔍 [AI Normalizer] "${trimmedMessage}" ➔ "${normalizedMessage}"`);
+  }
 
   // Nếu không có API Key, dùng bộ phân tích thông minh Deterministic Fallback
   if (!GEMINI_API_KEY) {
     console.log("ℹ️ GEMINI_API_KEY chưa cấu hình, sử dụng Smart Analytic Fallback");
-    const fallbackText = await generateFallbackResponse(trimmedMessage, userContext);
+    const fallbackText = await generateFallbackResponse(normalizedMessage, userContext);
     return {
       reply: fallbackText,
       modelUsed: "local-analyst-fallback",
@@ -1794,10 +1855,10 @@ async function processChatMessage({ message, history = [], userContext }) {
       });
     }
 
-    // Add current user prompt
+    // Add current user prompt (using clean normalized message)
     formattedContents.push({
       role: "user",
-      parts: [{ text: trimmedMessage }],
+      parts: [{ text: normalizedMessage }],
     });
 
     const requestPayload = {
@@ -1821,13 +1882,17 @@ async function processChatMessage({ message, history = [], userContext }) {
     if (functionCallParts.length > 0) {
       const executedToolNames = [];
       const toolResponses = [];
+      let lastToolResult = null;
+      let lastToolName = null;
 
       for (const part of functionCallParts) {
         const call = part.functionCall;
         console.log(`🤖 Gemini (${modelUsed}) requesting tool call: ${call.name} with args:`, call.args);
         executedToolNames.push(call.name);
+        lastToolName = call.name;
 
         const toolResult = await executeTool(call.name, call.args, userContext);
+        lastToolResult = toolResult;
         toolResponses.push({
           functionResponse: {
             name: call.name,
@@ -1870,8 +1935,10 @@ async function processChatMessage({ message, history = [], userContext }) {
       let reply = textParts.join("\n\n").trim();
 
       if (!reply) {
-        console.warn("⚠️ Gemini returned empty text after tool call. Falling back to structured response.");
-        reply = await generateFallbackResponse(trimmedMessage, userContext);
+        console.warn("⚠️ Gemini returned empty text after tool call. Synthesizing from tool result directly.");
+        reply = (lastToolName && lastToolResult)
+          ? formatToolResultToMarkdown(lastToolName, lastToolResult)
+          : await generateFallbackResponse(trimmedMessage, userContext);
       }
 
       return {
