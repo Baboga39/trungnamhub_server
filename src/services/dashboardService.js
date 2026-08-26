@@ -588,12 +588,24 @@ async function getAttendanceStreakTop(user, limit = 10) {
 }
 
 async function getQuarterlyBirthdays(user, queryQuarter, queryYear) {
-  const branchFilter = buildBranchFilter(user);
   const now = new Date();
-  const year = queryYear ? Number(queryYear) : now.getFullYear();
   const currentMonth = now.getMonth() + 1; // 1-12
   const currentQuarter = Math.ceil(currentMonth / 3); // 1-4
-  const quarter = queryQuarter ? Number(queryQuarter) : currentQuarter;
+
+  let quarter, year, branch;
+  if (typeof queryQuarter === "object" && queryQuarter !== null) {
+    quarter = queryQuarter.quarter ? Number(queryQuarter.quarter) : currentQuarter;
+    year = queryQuarter.year ? Number(queryQuarter.year) : now.getFullYear();
+    branch = queryQuarter.branch;
+  } else {
+    quarter = queryQuarter ? Number(queryQuarter) : currentQuarter;
+    year = queryYear ? Number(queryYear) : now.getFullYear();
+  }
+
+  let branchFilter = buildBranchFilter(user);
+  if (branch && branch !== "all") {
+    branchFilter = { branch };
+  }
 
   // Quarter months (1-indexed)
   const quarterMonths = [(quarter - 1) * 3 + 1, (quarter - 1) * 3 + 2, (quarter - 1) * 3 + 3];
