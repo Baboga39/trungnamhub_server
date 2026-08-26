@@ -309,16 +309,29 @@ async function getRiskMembers(user) {
     .slice(0, 5);
 }
 
-async function getAttendanceStreakTop(user, limit = 10) {
-  const branchFilter = buildBranchFilter(user);
+async function getAttendanceStreakTop(user, limit = 10, filterBranch = null) {
+  let branchFilter = {};
+  if (filterBranch && filterBranch !== "all") {
+    if (filterBranch.includes(",")) {
+      const branches = filterBranch.split(",").map((b) => b.trim());
+      branchFilter = { branch: { in: branches } };
+    } else {
+      branchFilter = { branch: filterBranch };
+    }
+  } else if (user) {
+    branchFilter = buildBranchFilter(user);
+  }
 
   // ============================================================
   // 1. Lấy toàn bộ session
   // ============================================================
+  const sessionWhere = {};
+  if (branchFilter.branch) {
+    sessionWhere.branch = branchFilter.branch;
+  }
+
   const sessions = await prisma.session.findMany({
-    where: {
-      branch: branchFilter.branch || undefined,
-    },
+    where: sessionWhere,
     orderBy: {
       date: "asc",
     },

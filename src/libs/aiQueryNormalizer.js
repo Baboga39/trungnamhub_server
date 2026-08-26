@@ -106,6 +106,9 @@ const WORD_MAP = {
   doitruong: "đội trưởng",
   chidoan: "chi đoàn",
   phandoan: "phân đoàn",
+  toan: "toán",
+  hangdoi: "hàng đội",
+  doinhom: "đội nhóm",
   nam: "nam",
   nu: "nữ",
   trai: "nam",
@@ -153,12 +156,12 @@ const WORD_MAP = {
   camnang: "cẩm nang",
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 5. ĐỊA BÀN, GIÁO XỨ, LIÊN LẠC & GIA ĐÌNH
+  // 5. ĐỊA BÀN, Xã đạo, LIÊN LẠC & GIA ĐÌNH
   // ─────────────────────────────────────────────────────────────────────────────
-  gx: "giáo xứ",
-  giaoxu: "giáo xứ",
-  gh: "giáo họ",
-  giaoho: "giáo họ",
+  gx: "Xã đạo",
+  giaoxu: "Xã đạo",
+  gh: "Họ Đạo",
+  giaoho: "Họ Đạo",
   xadao: "xã đạo",
   nhatho: "nhà thờ",
   diaban: "địa bàn",
