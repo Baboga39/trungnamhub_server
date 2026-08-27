@@ -18,7 +18,12 @@ const resetPasswordSchema = Joi.object({
 
 const changeInfoSchema = Joi.object({
   email: Joi.string().email().required(),
-  name: Joi.string().min(8).max(50).required(),
+  name: Joi.string().min(2).max(100).required(),
+  phone: Joi.string().max(20).optional().allow(null, ""),
+  birthDate: Joi.string()
+    .pattern(/^(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2}.*)$/)
+    .optional()
+    .allow(null, ""),
 });
 
 const getPermissionSchema = Joi.object({

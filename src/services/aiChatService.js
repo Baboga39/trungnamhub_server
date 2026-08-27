@@ -160,7 +160,7 @@ const toolDeclarations = [
   },
   {
     name: "get_leaders_directory",
-    description: "Danh sách Huynh Trưởng, Ban Quản Trị và Phân công trách nhiệm theo từng Ngành.",
+    description: "Danh sách trưởng, Ban Quản Trị và Phân công trách nhiệm theo từng Ngành.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -216,7 +216,7 @@ const toolDeclarations = [
   },
   {
     name: "get_consecutive_absent_alerts",
-    description: "Cảnh báo danh sách các đoàn sinh vắng liên tiếp từ 2 đến 3+ buổi sinh hoạt gần nhất để Huynh Trưởng và Ban Quản Trị kịp thời nắm bắt và liên hệ thăm hỏi gia đình.",
+    description: "Cảnh báo danh sách các đoàn sinh vắng liên tiếp từ 2 đến 3+ buổi sinh hoạt gần nhất để trưởng và Ban Quản Trị kịp thời nắm bắt và liên hệ thăm hỏi gia đình.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -282,7 +282,7 @@ const toolDeclarations = [
   },
   {
     name: "get_leaders_contribution_stats",
-    description: "Thống kê chi tiết mức độ đóng góp của Ban Huynh Trưởng: thâm niên gắn bó (năm bắt đầu), số sự kiện/hoạt động đã tổ chức, số buổi sinh hoạt và lượt điểm danh đã thực hiện.",
+    description: "Thống kê chi tiết mức độ đóng góp của Ban trưởng: thâm niên gắn bó (năm bắt đầu), số sự kiện/hoạt động đã tổ chức, số buổi sinh hoạt và lượt điểm danh đã thực hiện.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -312,7 +312,7 @@ const toolDeclarations = [
 
   {
     name: "get_leader_to_member_ratio",
-    description: "Thống kê tỷ lệ nhân sự Huynh Trưởng trên số lượng Đoàn sinh (Leader-to-Member Ratio) của từng ngành và đánh giá mức độ bao quát nhân sự theo chuẩn sư phạm TNTT.",
+    description: "Thống kê tỷ lệ nhân sự trưởng trên số lượng Đoàn sinh (Leader-to-Member Ratio) của từng ngành và đánh giá mức độ bao quát nhân sự theo chuẩn sư phạm TNTT.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -364,7 +364,7 @@ const toolDeclarations = [
   },
   {
     name: "get_lesson_preparation_readiness",
-    description: "Kiểm tra mức độ chuẩn bị bài học/giáo án trong Quý: số bài đã gán Huynh trưởng phụ trách, số bài đã chuẩn bị tài liệu (prepared=true), số bài đã upload file đính kèm.",
+    description: "Kiểm tra mức độ chuẩn bị bài học/giáo án trong Quý: số bài đã gán trưởng phụ trách, số bài đã chuẩn bị tài liệu (prepared=true), số bài đã upload file đính kèm.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -376,7 +376,7 @@ const toolDeclarations = [
   },
   {
     name: "get_grade_outliers_and_anomalies",
-    description: "Phát hiện các trường hợp bất thường về điểm số: chênh lệch điểm quá lớn giữa các môn học hoặc có môn đạt điểm dưới trung bình (<5.0) để Huynh trưởng kèm cặp.",
+    description: "Phát hiện các trường hợp bất thường về điểm số: chênh lệch điểm quá lớn giữa các môn học hoặc có môn đạt điểm dưới trung bình (<5.0) để trưởng kèm cặp.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -410,7 +410,7 @@ const toolDeclarations = [
   },
   {
     name: "get_unassigned_members_and_leaders",
-    description: "Rà soát danh sách đoàn sinh chưa được xếp vào Chi đoàn/Đội nào hoặc thiếu thông tin Họ Đạo, và Huynh trưởng chưa được gán ngành phụ trách.",
+    description: "Rà soát danh sách đoàn sinh chưa được xếp vào Chi đoàn/Đội nào hoặc thiếu thông tin Họ Đạo, và trưởng chưa được gán ngành phụ trách.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -563,7 +563,7 @@ async function executeTool(toolName, args, userContext) {
             const formattedLeaders = matchingUsers.map((u) => ({
               id: u.id,
               name: u.name,
-              role: u.role || "Huynh Trưởng",
+              role: u.role || "trưởng",
               branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo",
               email: u.email,
               eventsOrganized: u.sumEvent || 0,
@@ -576,7 +576,7 @@ async function executeTool(toolName, args, userContext) {
                 count: formattedLeaders.length,
                 isLeader: true,
                 leaders: formattedLeaders,
-                note: `Không tìm thấy đoàn sinh tên '${query}', nhưng tìm thấy thông tin Huynh Trưởng / Ban Quản Trị trong hệ thống.`,
+                note: `Không tìm thấy đoàn sinh tên '${query}', nhưng tìm thấy thông tin trưởng / Ban Quản Trị trong hệ thống.`,
               },
             };
           }
@@ -922,7 +922,7 @@ async function executeTool(toolName, args, userContext) {
         };
       }
 
-      // 12. Danh bạ Huynh Trưởng & BQT
+      // 12. Danh bạ trưởng & BQT
       case "get_leaders_directory": {
         const userWhere = { active: true };
         if (branch && branch !== "all") {
@@ -945,7 +945,7 @@ async function executeTool(toolName, args, userContext) {
 
         const formatted = users.map((u) => ({
           name: u.name,
-          role: u.role || "Huynh Trưởng",
+          role: u.role || "trưởng",
           branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo",
           email: u.email,
           eventsOrganized: u.sumEvent || 0,
@@ -1014,7 +1014,7 @@ async function executeTool(toolName, args, userContext) {
                 year: p.year,
                 quarter: p.quarter,
                 lessonCount: p.lessonCount || 0,
-                createdBy: p.createdBy ? `Huynh Trưởng #${p.createdBy}` : "—",
+                createdBy: p.createdBy ? `trưởng #${p.createdBy}` : "—",
                 date: new Date(p.createdAt).toLocaleDateString("vi-VN"),
               };
             });
@@ -1447,7 +1447,7 @@ async function executeTool(toolName, args, userContext) {
         };
       }
 
-      // 24. Thống kê mức độ cống hiến của Huynh Trưởng
+      // 24. Thống kê mức độ cống hiến của trưởng
       case "get_leaders_contribution_stats": {
         const users = await prisma.user.findMany({
           where: { active: true, ...(branch && branch !== "all" ? { branch } : {}) },
@@ -1469,7 +1469,7 @@ async function executeTool(toolName, args, userContext) {
             count: users.length,
             leaderStats: users.map((u) => ({
               name: u.name,
-              role: u.role || "Huynh Trưởng",
+              role: u.role || "trưởng",
               branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo",
               eventsOrganized: u.sumEvent || u._count.activitiesCreated || 0,
               sessionsCreated: u._count.sessionsCreated || 0,
@@ -1560,7 +1560,7 @@ async function executeTool(toolName, args, userContext) {
         };
       }
 
-      // 26. Tỷ lệ Huynh Trưởng / Đoàn sinh (Leader-to-Member Ratio)
+      // 26. Tỷ lệ trưởng / Đoàn sinh (Leader-to-Member Ratio)
       case "get_leader_to_member_ratio": {
         const [leaders, members] = await Promise.all([
           prisma.user.findMany({ where: { role: { not: "admin" } }, select: { branch: true } }),
@@ -1573,8 +1573,8 @@ async function executeTool(toolName, args, userContext) {
           const mCount = members.filter((m) => m.branch === b).length;
           const ratio = lCount > 0 ? (mCount / lCount).toFixed(1) : "N/A";
           let assessment = "Chuẩn sư phạm (1 HT / 8-10 ĐS)";
-          if (lCount === 0) assessment = "Thiếu Huynh Trưởng";
-          else if (mCount / lCount > 15) assessment = "Cần tăng cường thêm Huynh Trưởng";
+          if (lCount === 0) assessment = "Thiếu trưởng";
+          else if (mCount / lCount > 15) assessment = "Cần tăng cường thêm trưởng";
           else if (mCount / lCount <= 7) assessment = "Rất tối ưu, chăm sóc kèm cặp sát sao";
 
           return {
@@ -1645,7 +1645,7 @@ async function executeTool(toolName, args, userContext) {
 
         const representatives = users.map((u) => ({
           name: u.name,
-          role: u.role === "admin" ? "Ban Quản Trị (Admin)" : u.role || "Huynh Trưởng",
+          role: u.role === "admin" ? "Ban Quản Trị (Admin)" : u.role || "trưởng",
           branch: u.branch ? `Ngành ${u.branch}` : "Toàn Xứ Đoàn",
           email: u.email || "—",
         }));
@@ -1976,7 +1976,7 @@ async function executeTool(toolName, args, userContext) {
         };
       }
 
-      // 39. Rà soát thành viên / Huynh trưởng chưa được phân công
+      // 39. Rà soát thành viên / trưởng chưa được phân công
       case "get_unassigned_members_and_leaders": {
         const memberWhere = {
           active: true,
@@ -2144,7 +2144,7 @@ Danh sách 36 Công cụ (AI Tools) chuyên sâu bạn sở hữu:
 4. 📚 Học tập & Điểm số: \`get_subject_grades_analytics\`, \`get_grade_distribution_summary\`, \`get_grade_outliers_and_anomalies\`, \`get_scoring_rules_and_weights\`, \`get_top_members\`, \`get_top_performers\`, \`get_risk_members\`, \`get_at_risk_members\`
 5. 📖 Kế hoạch sinh hoạt, Giáo án & Phê duyệt: \`get_quarter_programs\`, \`get_lesson_preparation_readiness\`, \`get_documents_and_approvals\`
 6. ⛺ Sự kiện, Ngoại khóa & Thăng tiến: \`get_activities_summary\`, \`get_upcoming_events\`, \`get_member_activity_history\`, \`get_promotion_and_new_members\`, \`get_quarterly_birthdays\`
-7. 👔 Ban Huynh Trưởng & Đội nhóm: \`get_leaders_directory\`, \`get_leaders_contribution_stats\`, \`get_group_squad_distribution\`, \`get_church_parish_breakdown\`, \`get_branch_contact_representatives\`, \`get_leader_to_member_ratio\`
+7. 👔 Ban trưởng & Đội nhóm: \`get_leaders_directory\`, \`get_leaders_contribution_stats\`, \`get_group_squad_distribution\`, \`get_church_parish_breakdown\`, \`get_branch_contact_representatives\`, \`get_leader_to_member_ratio\`
 
 Phong cách trả lời:
 - Trả lời bằng tiếng Việt tự nhiên, chuẩn mực, đúng trọng tâm câu hỏi.
@@ -2333,14 +2333,14 @@ async function generateFallbackResponse(message, userContext) {
       return md;
     }
 
-    // 7. Danh bạ Huynh Trưởng
-    if (q.includes("huynh trưởng") || q.includes("bqt") || q.includes("ban quản trị") || q.includes("danh bạ") || q.includes("ai phụ trách")) {
+    // 7. Danh bạ trưởng
+    if (q.includes("trưởng") || q.includes("bqt") || q.includes("ban quản trị") || q.includes("danh bạ") || q.includes("ai phụ trách")) {
       const users = await prisma.user.findMany({ where: { active: true }, select: { name: true, role: true, branch: true, email: true } });
-      let md = `### 👥 Danh bạ Ban Quản Trị & Huynh Trưởng\n\n`;
+      let md = `### 👥 Danh bạ Ban Quản Trị & trưởng\n\n`;
       md += `| Họ tên | Vai trò | Ngành phụ trách | Email |\n`;
       md += `| :--- | :--- | :--- | :--- |\n`;
       users.forEach((u) => {
-        md += `| **${u.name}** | ${u.role === "admin" ? "BQT (Admin)" : "Huynh Trưởng"} | ${u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo"} | \`${u.email}\` |\n`;
+        md += `| **${u.name}** | ${u.role === "admin" ? "BQT (Admin)" : "trưởng"} | ${u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo"} | \`${u.email}\` |\n`;
       });
       return md;
     }
@@ -2368,7 +2368,7 @@ Tôi có thể hỗ trợ bạn tra cứu mọi thông tin trong hệ thống:
 - 🏆 **Thi đua & Điểm số:** *"Top 5 đoàn sinh xuất sắc"*, *"Môn nào điểm trung bình cao nhất?"*
 - ⚠️ **Cảnh báo Nguy cơ:** *"Có em nào vắng nhiều không?"*, *"Danh sách đoàn sinh diện cảnh báo"*
 - 📈 **Chuyên cần & Buổi học:** *"Chi tiết điểm danh buổi sinh hoạt gần nhất"*, *"Xu hướng chuyên cần"*
-- 👥 **Đội ngũ Huynh Trưởng:** *"Danh bạ Huynh trưởng Ngành Thiếu"*, *"Ai phụ trách Ngành Đồng?"*
+- 👥 **Đội ngũ trưởng:** *"Danh bạ trưởng Ngành Thiếu"*, *"Ai phụ trách Ngành Đồng?"*
 - 📊 **Báo cáo Tổng quan:** *"Tóm tắt tình hình Quý này"*
 
 Bạn muốn tra cứu thông tin nào?`;
@@ -2640,7 +2640,7 @@ function getQuickSuggestions(userContext) {
     "Danh sách đoàn sinh xuất sắc nhất",
     "Những đoàn sinh thuộc diện cảnh báo nguy cơ",
     "Chi tiết điểm danh buổi sinh hoạt gần nhất",
-    "Danh bạ Huynh Trưởng và BQT",
+    "Danh bạ trưởng và BQT",
   ];
 }
 

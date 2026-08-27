@@ -34,6 +34,7 @@ async function login(email, password) {
   const match = await bcrypt.compare(password, user.password);
   if (!match) throw { statusCode: 401, message: "Invalid Password" };
   const startYear = formatDate(user.startYear);
+  const birthDate = formatDate(user.birthDate);
 
   const token = jwt.sign(
     {
@@ -42,6 +43,8 @@ async function login(email, password) {
       name: user.name,
       role: user.role,
       branch: user.branch,
+      phone: user.phone || "",
+      birthDate: birthDate || "",
       startYear: startYear,
       sumEvent: user.sumEvent,
     },
@@ -73,11 +76,21 @@ function verifyToken(token) {
   return jwt.verify(token, JWT_SECRET);
 }
 
-async function changeInfo(user, email, name) {
-  return await prisma.user.update({
+async function changeInfo(user, email, name, phone, birthDate) {
+  const updateData = { email, name };
+  if (phone !== undefined) updateData.phone = phone || null;
+  if (birthDate !== undefined) updateData.birthDate = birthDate ? parseDate(birthDate) : null;
+
+  const updated = await prisma.user.update({
     where: { id: user.userId },
-    data: { email, name },
+    data: updateData,
   });
+
+  return {
+    ...updated,
+    birthDate: formatDate(updated.birthDate),
+    startYear: formatDate(updated.startYear),
+  };
 }
 
 async function getPermission(userId ) {

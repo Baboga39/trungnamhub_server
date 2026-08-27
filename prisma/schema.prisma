@@ -16,6 +16,8 @@ model User {
   role              String               @default("user")
   sumEvent          Int?
   startYear         DateTime?
+  birthDate         DateTime?
+  phone             String?
   active            Boolean              @default(true)
   branch            String?
   activitiesCreated Activity[]

@@ -1036,7 +1036,7 @@ const generateAttendanceQuarterlyReportBundle = async (year, quartersInput, emai
     sendReportMail({
       meta: {
         toEmail: emailString,
-        tenTruongDoan: "Huynh Trưởng / Quản Trị Viên",
+        tenTruongDoan: "trưởng / Quản Trị Viên",
         tieuDeBaoCao: `Báo cáo Chuyên cần ${quarters.map((q) => `Quý ${q}`).join(", ")}/${year} (PDF & Excel)`,
         tenNguoiGui: "Hệ thống Trung Nam",
         loaiBaoCao: "Chuyên cần Quý",
@@ -1208,7 +1208,7 @@ const generateAttendanceAllTimeReportBundle = async (email, user) => {
     sendReportMail({
       meta: {
         toEmail: emailString,
-        tenTruongDoan: "Huynh Trưởng / Quản Trị Viên",
+        tenTruongDoan: "trưởng / Quản Trị Viên",
         tieuDeBaoCao: `Báo cáo Chuyên cần Toàn khóa - Tất cả thời gian (PDF & Excel)`,
         tenNguoiGui: "Hệ thống Trung Nam",
         loaiBaoCao: "Chuyên cần Toàn khóa",
@@ -1625,7 +1625,7 @@ const generateMemberFullBackupExcel = async (year, email, user) => {
     sendReportMail({
       meta: {
         toEmail: emailString,
-        tenTruongDoan: "Huynh Trưởng / Quản Trị Viên",
+        tenTruongDoan: "trưởng / Quản Trị Viên",
         tieuDeBaoCao: `File Sao Lưu Dữ Liệu Đoàn Sinh Toàn Diện Năm ${targetYear} (Excel)`,
         tenNguoiGui: "Hệ thống Trung Nam Hub",
         loaiBaoCao: "Sao Lưu Đoàn Sinh",

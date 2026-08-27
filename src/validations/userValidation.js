@@ -17,10 +17,16 @@ const userUpsertSchema = Joi.object({
     "string.min": "Mật khẩu tối thiểu 6 ký tự",
     "any.required": "Mật khẩu là bắt buộc",
   }),
-  branch: Joi.string().optional(),
+  branch: Joi.string().optional().allow(null, ""),
+  phone: Joi.string().max(20).optional().allow(null, ""),
+  birthDate: Joi.string()
+    .pattern(/^(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2}.*)$/)
+    .message("birthDate must be in dd/MM/yyyy or YYYY-MM-DD format")
+    .optional()
+    .allow(null, ""),
   startYear: Joi.string()
-    .pattern(/^\d{2}\/\d{2}\/\d{4}$/)
-    .message("startYear must be in dd/MM/yyyy format")
+    .pattern(/^(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2}.*)$/)
+    .message("startYear must be in dd/MM/yyyy or YYYY-MM-DD format")
     .required(),
   sumEvent: Joi.number().integer().min(0).optional(),
   role: Joi.string().default("user"),
