@@ -1,4 +1,9 @@
 
+const axios = require("axios");
+const jwt = require("jsonwebtoken");
+const PROGRAM_SERVER_URL = process.env.PROGRAM_SERVER_URL || "http://localhost:5001";
+const JWT_SECRET = process.env.JWT_SECRET || "TrungnamHub";
+
 const prisma = require("../libs/prisma");
 const { formatDate } = require("../libs/formatDate");
 const { getRank } = require("../libs/scoreCalculator");
@@ -1647,6 +1652,614 @@ const generateMemberFullBackupExcel = async (year, email, user) => {
   };
 };
 
+// ─────────────────────────────────────────────────────────────
+// 5. BÁO CÁO CHƯƠNG TRÌNH SINH HOẠT THEO QUÝ (PDF & EXCEL - ZIP)
+// ─────────────────────────────────────────────────────────────
+
+const fetchProgramsAndLessonsForReport = async (branch, year, quarters, user) => {
+  const serviceToken = jwt.sign(
+    {
+      userId: user?.id || user?.userId || 1,
+      role: user?.role || "admin",
+      branch: user?.branch || null,
+    },
+    JWT_SECRET,
+    { expiresIn: "1h" }
+  );
+
+  let branchesToQuery = [];
+  if (user?.branch) {
+    branchesToQuery = [user.branch];
+  } else if (!branch || branch === "ALL" || branch === "all") {
+    branchesToQuery = ["Đồng", "Thiếu", "Thanh"];
+  } else {
+    if (branch === "DONG" || branch === "Đồng" || branch === "Dong") branchesToQuery = ["Đồng"];
+    else if (branch === "THIEU" || branch === "Thiếu" || branch === "Thieu") branchesToQuery = ["Thiếu"];
+    else if (branch === "THANH" || branch === "Thanh") branchesToQuery = ["Thanh"];
+    else branchesToQuery = [branch];
+  }
+
+  const users = await prisma.user.findMany({
+    select: { id: true, name: true, role: true, branch: true },
+  });
+  const userMap = new Map(users.map((u) => [u.id, u]));
+
+  const programsList = [];
+
+  for (const q of quarters) {
+    for (const b of branchesToQuery) {
+      try {
+        const res = await axios.get(`${PROGRAM_SERVER_URL}/api/v1/programs`, {
+          params: { year, quarter: Number(q), branchId: b },
+          headers: { Authorization: `Bearer ${serviceToken}` },
+          timeout: 15000,
+        });
+        const progs = res.data?.data || res.data || [];
+        if (Array.isArray(progs) && progs.length > 0) {
+          for (const prog of progs) {
+            try {
+              const detailRes = await axios.get(
+                `${PROGRAM_SERVER_URL}/api/v1/programs/${prog.id}`,
+                {
+                  headers: { Authorization: `Bearer ${serviceToken}` },
+                  timeout: 15000,
+                }
+              );
+              const fullProg = detailRes.data?.data || detailRes.data || prog;
+
+              const enrichedLessons = (fullProg.lessons || []).map((l) => {
+                const leadersInfo = (l.leaders || []).map((ldr) => {
+                  const u = userMap.get(ldr.userId);
+                  return ldr.name || u?.name || `Trưởng #${ldr.userId}`;
+                });
+                return {
+                  ...l,
+                  leaderNames: leadersInfo.length > 0 ? leadersInfo.join(", ") : "Chưa phân công",
+                  formattedDate: l.date ? new Date(l.date).toLocaleDateString("vi-VN") : "—",
+                  categoryName: l.commonProgram?.name || l.commonProgramCode || "Chung",
+                  locationName: l.location?.name || l.locationCode || "—",
+                };
+              });
+
+              programsList.push({
+                ...fullProg,
+                branchName: fullProg.branch?.name || fullProg.branchId || b,
+                lessons: enrichedLessons,
+              });
+            } catch (err) {
+              console.error(`Error fetching program detail ${prog.id}:`, err.message);
+              programsList.push({
+                ...prog,
+                branchName: prog.branch?.name || prog.branchId || b,
+                lessons: [],
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`Error fetching programs for Q${q} ${b}:`, err.message);
+      }
+    }
+  }
+
+  programsList.sort((a, b) => {
+    if (a.year !== b.year) return b.year - a.year;
+    if (a.quarter !== b.quarter) return a.quarter - b.quarter;
+    return (a.branchName || "").localeCompare(b.branchName || "");
+  });
+
+  return programsList;
+};
+
+const generateProgramQuarterlyExcel = async (programs, year, quarters, branchLabel) => {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Hệ thống Quản lý Trung Nam Hub";
+  workbook.created = new Date();
+
+  const headerStyle = (row, bgColor = "FF1E40AF") => {
+    row.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+    row.height = 26;
+    row.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFCBD5E1" } },
+        left: { style: "thin", color: { argb: "FFCBD5E1" } },
+        bottom: { style: "thin", color: { argb: "FFCBD5E1" } },
+        right: { style: "thin", color: { argb: "FFCBD5E1" } },
+      };
+    });
+  };
+
+  const applyBorders = (row) => {
+    row.alignment = { vertical: "middle" };
+    row.eachCell((cell) => {
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFE2E8F0" } },
+        left: { style: "thin", color: { argb: "FFE2E8F0" } },
+        bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+        right: { style: "thin", color: { argb: "FFE2E8F0" } },
+      };
+    });
+  };
+
+  // Sheet 1: Tổng quan chương trình
+  const summarySheet = workbook.addWorksheet("Tổng quan chương trình");
+  summarySheet.views = [{ showGridLines: true }];
+
+  summarySheet.mergeCells("A2:H2");
+  const titleCell = summarySheet.getCell("A2");
+  titleCell.value = "GIA ĐÌNH HƯNG ĐẠO TRUNG NAM - BAN QUẢN TRỊ";
+  titleCell.font = { name: "Arial", size: 11, bold: true, color: { argb: "FF64748B" } };
+  titleCell.alignment = { horizontal: "center" };
+
+  summarySheet.mergeCells("A3:H3");
+  const mainTitle = summarySheet.getCell("A3");
+  mainTitle.value = `BÁO CÁO TỔNG QUAN CHƯƠNG TRÌNH SINH HOẠT NĂM ${year}`;
+  mainTitle.font = { name: "Arial", size: 14, bold: true, color: { argb: "FF1E3A8A" } };
+  mainTitle.alignment = { horizontal: "center" };
+
+  summarySheet.mergeCells("A4:H4");
+  const subTitle = summarySheet.getCell("A4");
+  subTitle.value = `Quý báo cáo: ${quarters.map((q) => `Quý ${q}`).join(", ")} • Ngành: ${branchLabel} • Ngày xuất: ${new Date().toLocaleDateString("vi-VN")}`;
+  subTitle.font = { name: "Arial", size: 10, italic: true, color: { argb: "FF64748B" } };
+  subTitle.alignment = { horizontal: "center" };
+
+  summarySheet.addRow([]); // Blank
+  const sumHeader = summarySheet.addRow([
+    "STT",
+    "Quý",
+    "Ngành",
+    "Trạng thái duyệt",
+    "Tổng số bài khóa / buổi",
+    "Sĩ số kế hoạch (Tổng)",
+    "Sĩ số thực tế (Tổng)",
+    "Đánh giá TB (%)",
+  ]);
+  headerStyle(sumHeader, "FF1E40AF");
+
+  let totalLessonsAll = 0;
+  let totalPlannedAll = 0;
+  let totalActualAll = 0;
+  let sumEvalPercent = 0;
+  let countEval = 0;
+
+  programs.forEach((prog, index) => {
+    const lessons = prog.lessons || [];
+    const lessonCount = lessons.length;
+    const plannedSum = lessons.reduce((s, l) => s + (l.plannedParticipantCount || 0), 0);
+    const actualSum = lessons.reduce((s, l) => s + (l.actualParticipantCount || 0), 0);
+
+    const evals = lessons.filter((l) => l.evaluationPercent != null && l.evaluationPercent > 0);
+    const avgEval = evals.length > 0 ? (evals.reduce((s, l) => s + l.evaluationPercent, 0) / evals.length).toFixed(1) : "—";
+
+    totalLessonsAll += lessonCount;
+    totalPlannedAll += plannedSum;
+    totalActualAll += actualSum;
+    if (evals.length > 0) {
+      sumEvalPercent += parseFloat(avgEval);
+      countEval++;
+    }
+
+    const statusLabel =
+      prog.status === "APPROVED"
+        ? "✅ Đã duyệt"
+        : prog.status === "PENDING"
+        ? "⏳ Chờ duyệt"
+        : prog.status === "NEED_REVISION"
+        ? "⚠️ Cần sửa"
+        : "📝 Bản nháp";
+
+    const row = summarySheet.addRow([
+      index + 1,
+      `Quý ${prog.quarter}`,
+      prog.branchName || prog.branchId,
+      statusLabel,
+      lessonCount,
+      plannedSum,
+      actualSum,
+      avgEval !== "—" ? `${avgEval}%` : "—",
+    ]);
+    applyBorders(row);
+    row.getCell(1).alignment = { horizontal: "center" };
+    row.getCell(2).alignment = { horizontal: "center" };
+    row.getCell(3).alignment = { horizontal: "center" };
+    row.getCell(4).alignment = { horizontal: "center" };
+    row.getCell(5).alignment = { horizontal: "center" };
+    row.getCell(6).alignment = { horizontal: "center" };
+    row.getCell(7).alignment = { horizontal: "center" };
+    row.getCell(8).alignment = { horizontal: "center" };
+  });
+
+  if (programs.length > 0) {
+    const overallAvgEval = countEval > 0 ? (sumEvalPercent / countEval).toFixed(1) + "%" : "—";
+    const totalRow = summarySheet.addRow([
+      "TỔNG CỘNG",
+      "",
+      "",
+      "",
+      totalLessonsAll,
+      totalPlannedAll,
+      totalActualAll,
+      overallAvgEval,
+    ]);
+    summarySheet.mergeCells(`A${totalRow.number}:D${totalRow.number}`);
+    totalRow.font = { name: "Arial", size: 10, bold: true };
+    applyBorders(totalRow);
+    totalRow.getCell(1).alignment = { horizontal: "center" };
+    totalRow.getCell(5).alignment = { horizontal: "center" };
+    totalRow.getCell(6).alignment = { horizontal: "center" };
+    totalRow.getCell(7).alignment = { horizontal: "center" };
+    totalRow.getCell(8).alignment = { horizontal: "center" };
+  }
+
+  summarySheet.columns = [
+    { width: 8 },
+    { width: 14 },
+    { width: 16 },
+    { width: 18 },
+    { width: 24 },
+    { width: 22 },
+    { width: 22 },
+    { width: 18 },
+  ];
+
+  // Sheet 2: Chi tiết các bài khóa
+  const detailSheet = workbook.addWorksheet("Chi tiết bài khóa sinh hoạt");
+  detailSheet.views = [{ showGridLines: true }];
+
+  detailSheet.mergeCells("A2:K2");
+  const dTitleCell = detailSheet.getCell("A2");
+  dTitleCell.value = `CHI TIẾT LỊCH TRÌNH VÀ BÀI KHÓA SINH HOẠT - NĂM ${year}`;
+  dTitleCell.font = { name: "Arial", size: 13, bold: true, color: { argb: "FF0F766E" } };
+  dTitleCell.alignment = { horizontal: "center" };
+
+  detailSheet.addRow([]); // blank
+  const detailHeader = detailSheet.addRow([
+    "STT",
+    "Quý",
+    "Ngành",
+    "Ngày sinh hoạt",
+    "Nội dung bài khóa / Hoạt động",
+    "Chủ đề / Phân loại",
+    "Trưởng phụ trách",
+    "Địa điểm",
+    "Thời lượng",
+    "Sĩ số (KH / TT)",
+    "Đánh giá (%)",
+  ]);
+  headerStyle(detailHeader, "FF0F766E");
+
+  let lessonIndex = 1;
+  programs.forEach((prog) => {
+    (prog.lessons || []).forEach((l) => {
+      const durationStr = l.durationMinutes ? `${l.durationMinutes}p` : "—";
+      const countStr = `${l.plannedParticipantCount || 0} / ${l.actualParticipantCount || 0}`;
+      const evalStr = l.evaluationPercent ? `${l.evaluationPercent}%` : "—";
+
+      const row = detailSheet.addRow([
+        lessonIndex++,
+        `Quý ${prog.quarter}`,
+        prog.branchName || prog.branchId,
+        l.formattedDate,
+        l.lessonText,
+        l.categoryName,
+        l.leaderNames,
+        l.locationName,
+        durationStr,
+        countStr,
+        evalStr,
+      ]);
+      applyBorders(row);
+      row.getCell(1).alignment = { horizontal: "center" };
+      row.getCell(2).alignment = { horizontal: "center" };
+      row.getCell(3).alignment = { horizontal: "center" };
+      row.getCell(4).alignment = { horizontal: "center" };
+      row.getCell(6).alignment = { horizontal: "center" };
+      row.getCell(8).alignment = { horizontal: "center" };
+      row.getCell(9).alignment = { horizontal: "center" };
+      row.getCell(10).alignment = { horizontal: "center" };
+      row.getCell(11).alignment = { horizontal: "center" };
+    });
+  });
+
+  detailSheet.columns = [
+    { width: 6 },
+    { width: 12 },
+    { width: 14 },
+    { width: 16 },
+    { width: 34 },
+    { width: 20 },
+    { width: 24 },
+    { width: 20 },
+    { width: 14 },
+    { width: 16 },
+    { width: 14 },
+  ];
+
+  return workbook.xlsx.writeBuffer();
+};
+
+const generateProgramQuarterlyPDF = async (programs, year, quarters, branchLabel) => {
+  const content = [];
+
+  content.push({ text: "GIA ĐÌNH HƯNG ĐẠO TRUNG NAM", style: "subHeader", alignment: "center" });
+  content.push({ text: "BAN QUẢN TRỊ & HƯỚNG DẪN ĐOÀN SINH", style: "subHeaderOrg", alignment: "center" });
+  content.push({
+    text: `BÁO CÁO CHƯƠNG TRÌNH SINH HOẠT QUÝ - NĂM ${year}`,
+    style: "mainHeader",
+    alignment: "center",
+  });
+  content.push({
+    text: `Quý báo cáo: ${quarters.map((q) => `Quý ${q}`).join(", ")}  •  Ngành: ${branchLabel}  •  Ngày xuất: ${new Date().toLocaleDateString("vi-VN")}`,
+    style: "dateText",
+    alignment: "center",
+  });
+  content.push({ text: "\n" });
+
+  // 1. KPI Summary Table
+  content.push({ text: "I. TỔNG QUAN CHỈ SỐ HOẠT ĐỘNG", style: "sectionHeader" });
+  content.push({ text: "\n" });
+
+  const summaryTableBody = [
+    [
+      { text: "Quý", style: "tableHeader", alignment: "center" },
+      { text: "Ngành", style: "tableHeader", alignment: "center" },
+      { text: "Trạng thái duyệt", style: "tableHeader", alignment: "center" },
+      { text: "Số bài khóa", style: "tableHeader", alignment: "center" },
+      { text: "Sĩ số kế hoạch", style: "tableHeader", alignment: "center" },
+      { text: "Sĩ số thực tế", style: "tableHeader", alignment: "center" },
+      { text: "Đánh giá TB", style: "tableHeader", alignment: "center" },
+    ],
+  ];
+
+  programs.forEach((prog) => {
+    const lessons = prog.lessons || [];
+    const lCount = lessons.length;
+    const pSum = lessons.reduce((s, l) => s + (l.plannedParticipantCount || 0), 0);
+    const aSum = lessons.reduce((s, l) => s + (l.actualParticipantCount || 0), 0);
+    const evals = lessons.filter((l) => l.evaluationPercent != null && l.evaluationPercent > 0);
+    const avgEval =
+      evals.length > 0 ? (evals.reduce((s, l) => s + l.evaluationPercent, 0) / evals.length).toFixed(1) + "%" : "—";
+
+    const stColor = prog.status === "APPROVED" ? "#16A34A" : prog.status === "PENDING" ? "#D97706" : "#64748B";
+    const stText =
+      prog.status === "APPROVED"
+        ? "Đã duyệt"
+        : prog.status === "PENDING"
+        ? "Chờ duyệt"
+        : prog.status === "NEED_REVISION"
+        ? "Cần sửa"
+        : "Bản nháp";
+
+    summaryTableBody.push([
+      { text: `Quý ${prog.quarter}`, bold: true, alignment: "center" },
+      { text: prog.branchName || prog.branchId, alignment: "center" },
+      { text: stText, color: stColor, bold: true, alignment: "center" },
+      { text: `${lCount} buổi`, alignment: "center" },
+      { text: `${pSum} em`, alignment: "center" },
+      { text: `${aSum} em`, alignment: "center" },
+      { text: avgEval, bold: true, color: "#0284C7", alignment: "center" },
+    ]);
+  });
+
+  if (programs.length === 0) {
+    summaryTableBody.push([
+      {
+        text: "Không có dữ liệu chương trình sinh hoạt nào trong giai đoạn này.",
+        colSpan: 7,
+        alignment: "center",
+        italics: true,
+        color: "#64748B",
+      },
+      {}, {}, {}, {}, {}, {}
+    ]);
+  }
+
+  content.push({
+    table: {
+      headerRows: 1,
+      widths: ["12%", "14%", "18%", "14%", "14%", "14%", "14%"],
+      body: summaryTableBody,
+    },
+    layout: {
+      fillColor: (rowIndex) => {
+        if (rowIndex === 0) return "#1E40AF";
+        return rowIndex % 2 === 0 ? "#F8FAFC" : null;
+      },
+      hLineColor: () => "#CBD5E1",
+      vLineColor: () => "#CBD5E1",
+    },
+  });
+
+  content.push({ text: "\n\n" });
+  content.push({ text: "II. CHI TIẾT LỊCH TRÌNH VÀ BÀI KHÓA SINH HOẠT", style: "sectionHeader" });
+  content.push({ text: "\n" });
+
+  // 2. Detailed Lessons Table
+  const detailTableBody = [
+    [
+      { text: "STT", style: "tableHeader", alignment: "center" },
+      { text: "Quý / Ngành", style: "tableHeader", alignment: "center" },
+      { text: "Ngày", style: "tableHeader", alignment: "center" },
+      { text: "Nội dung bài khóa / Hoạt động", style: "tableHeader", alignment: "left" },
+      { text: "Chủ đề", style: "tableHeader", alignment: "center" },
+      { text: "Trưởng phụ trách", style: "tableHeader", alignment: "left" },
+      { text: "Địa điểm", style: "tableHeader", alignment: "center" },
+      { text: "Sĩ số (KH/TT)", style: "tableHeader", alignment: "center" },
+      { text: "Đánh giá", style: "tableHeader", alignment: "center" },
+    ],
+  ];
+
+  let lessonCount = 1;
+  programs.forEach((prog) => {
+    (prog.lessons || []).forEach((l) => {
+      const countStr = `${l.plannedParticipantCount || 0}/${l.actualParticipantCount || 0}`;
+      const evalStr = l.evaluationPercent ? `${l.evaluationPercent}%` : "—";
+
+      detailTableBody.push([
+        { text: lessonCount++, alignment: "center" },
+        { text: `Q${prog.quarter} - ${prog.branchName || prog.branchId}`, alignment: "center", bold: true },
+        { text: l.formattedDate, alignment: "center" },
+        { text: l.lessonText, alignment: "left" },
+        { text: l.categoryName, alignment: "center" },
+        { text: l.leaderNames, alignment: "left" },
+        { text: l.locationName, alignment: "center" },
+        { text: countStr, alignment: "center" },
+        { text: evalStr, alignment: "center", bold: true, color: l.evaluationPercent ? "#0284C7" : "#64748B" },
+      ]);
+    });
+  });
+
+  if (lessonCount === 1) {
+    detailTableBody.push([
+      {
+        text: "Chưa có bài khóa sinh hoạt nào được lên lịch trong giai đoạn này.",
+        colSpan: 9,
+        alignment: "center",
+        italics: true,
+        color: "#64748B",
+      },
+      {}, {}, {}, {}, {}, {}, {}, {}
+    ]);
+  }
+
+  content.push({
+    table: {
+      headerRows: 1,
+      widths: ["5%", "12%", "9%", "24%", "11%", "14%", "10%", "8%", "7%"],
+      body: detailTableBody,
+    },
+    layout: {
+      fillColor: (rowIndex) => {
+        if (rowIndex === 0) return "#0F766E";
+        return rowIndex % 2 === 0 ? "#F8FAFC" : null;
+      },
+      hLineColor: () => "#CBD5E1",
+      vLineColor: () => "#CBD5E1",
+    },
+  });
+
+  // Footer / Signatures
+  content.push({ text: "\n\n" });
+  content.push({
+    columns: [
+      {
+        width: "50%",
+        alignment: "center",
+        stack: [
+          { text: "NGƯỜI LẬP BÁO CÁO", bold: true },
+          { text: "(Ký & ghi rõ họ tên)", italics: true, fontSize: 9, color: "#64748B" },
+          { text: "\n\n\n\n" },
+        ],
+      },
+      {
+        width: "50%",
+        alignment: "center",
+        stack: [
+          { text: "TRƯỞNG BAN HƯỚNG DẪN", bold: true },
+          { text: "(Ký duyệt)", italics: true, fontSize: 9, color: "#64748B" },
+          { text: "\n\n\n\n" },
+        ],
+      },
+    ],
+  });
+
+  const docDefinition = {
+    pageOrientation: "landscape",
+    pageSize: "A4",
+    pageMargins: [30, 30, 30, 30],
+    content,
+    styles: {
+      mainHeader: { fontSize: 16, bold: true, color: "#1E3A8A", margin: [0, 4, 0, 4] },
+      subHeader: { fontSize: 10, bold: true, color: "#64748B" },
+      subHeaderOrg: { fontSize: 9, color: "#94A3B8", margin: [0, 0, 0, 2] },
+      dateText: { fontSize: 9, italic: true, color: "#64748B" },
+      sectionHeader: { fontSize: 11, bold: true, color: "#1E3A8A", margin: [0, 8, 0, 2] },
+      tableHeader: { fontSize: 9, bold: true, color: "#FFFFFF" },
+    },
+    defaultStyle: {
+      font: "Roboto",
+      fontSize: 9,
+      color: "#334155",
+    },
+  };
+
+  return pdfmake.createPdf(docDefinition).getBuffer();
+};
+
+const generateProgramQuarterlyReportBundle = async (branch, year, quarters, email, user) => {
+  const normalizedQuarters = Array.isArray(quarters)
+    ? quarters.map(Number).sort((a, b) => a - b)
+    : [Number(quarters)];
+
+  const branchLabel =
+    !branch || branch === "ALL" || branch === "all"
+      ? "Toàn Gia Đình Hưng Đạo Trung Nam"
+      : branch === "DONG" || branch === "Đồng"
+      ? "Ngành Đồng"
+      : branch === "THIEU" || branch === "Thiếu"
+      ? "Ngành Thiếu"
+      : branch === "THANH" || branch === "Thanh"
+      ? "Ngành Thanh"
+      : `Ngành ${branch}`;
+
+  const branchTag =
+    !branch || branch === "ALL" || branch === "all"
+      ? "ToanDoan"
+      : branch === "DONG" || branch === "Đồng"
+      ? "NganhDong"
+      : branch === "THIEU" || branch === "Thiếu"
+      ? "NganhThieu"
+      : branch === "THANH" || branch === "Thanh"
+      ? "NganhThanh"
+      : branch;
+
+  const programs = await fetchProgramsAndLessonsForReport(branch, year, normalizedQuarters, user);
+
+  const [pdfBuffer, excelBuffer] = await Promise.all([
+    generateProgramQuarterlyPDF(programs, year, normalizedQuarters, branchLabel),
+    generateProgramQuarterlyExcel(programs, year, normalizedQuarters, branchLabel),
+  ]);
+
+  const pdfName = `BaoCao_ChuongTrinh_SinhHoat_${branchTag}_Q${normalizedQuarters.join("_")}_${year}.pdf`;
+  const excelName = `BaoCao_ChuongTrinh_SinhHoat_${branchTag}_Q${normalizedQuarters.join("_")}_${year}.xlsx`;
+
+  const zipFiles = [
+    { filename: pdfName, buffer: pdfBuffer },
+    { filename: excelName, buffer: excelBuffer },
+  ];
+
+  const zipBuffer = await createZip(zipFiles);
+  const zipFilename = `BaoCao_ChuongTrinh_SinhHoat_${branchTag}_${year}.zip`;
+
+  if (email) {
+    let emailString = Array.isArray(email) ? email.join(", ") : email;
+    sendReportMail({
+      meta: {
+        toEmail: emailString,
+        tenTruongDoan: "Quý Trưởng / Ban Quản Trị",
+        tieuDeBaoCao: `Báo cáo Chương Trình Sinh Hoạt ${branchLabel} - Năm ${year}`,
+        tenNguoiGui: "Hệ thống Trung Nam Hub",
+        loaiBaoCao: "Chương Trình Sinh Hoạt",
+      },
+      attachments: [
+        {
+          filename: zipFilename,
+          content: zipBuffer,
+        },
+      ],
+    }).catch((err) => {
+      console.error("❌ Send Program Report Email Error: ", err);
+    });
+  }
+
+  return {
+    filename: zipFilename,
+    buffer: zipBuffer,
+  };
+};
+
 module.exports = {
   generateMemberReportPDF,
   exportBatchPDF,
@@ -1654,5 +2267,6 @@ module.exports = {
   generateAttendanceQuarterlyReportBundle,
   generateAttendanceAllTimeReportBundle,
   generateMemberFullBackupExcel,
+  generateProgramQuarterlyReportBundle,
 };
 
