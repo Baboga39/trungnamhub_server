@@ -19,13 +19,13 @@ function mapMemberStatus(member) {
 function buildBranchFilter(user) {
   const role = String(user?.role || "").toLowerCase();
   const branchStr = String(user?.branch || "").toLowerCase();
-  if (role === "admin" || branchStr === "admin") return {};
+  if (role === "admin" || branchStr === "admin" || !user?.branch) return {};
 
   const branch = normalizeBranch(user?.branch);
 
   if (branch) return { branch };
 
-  throw { statusCode: 403, message: "User does not have a branch assigned" };
+  return {};
 }
 async function saveStatusHistory(tx, oldMember, newMember, note = null) {
   const oldPromotion = oldMember?.promotionDate?.getTime() ?? null;

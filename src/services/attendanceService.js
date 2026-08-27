@@ -239,13 +239,30 @@ async function getAttendanceSummary(date, sessionId) {
 /**
  * Get all attendance records.
  */
-async function getAttendanceAll(user) {
+async function getAttendanceAll(user, queryBranch) {
+  const role = String(user?.role || "").toLowerCase();
+  const branchStr = String(user?.branch || "").toLowerCase();
+
+  const userScopedBranch =
+    role !== "admin" && branchStr !== "admin" && user?.branch
+      ? user.branch
+      : null;
+
+  const targetBranch =
+    userScopedBranch ||
+    (queryBranch && queryBranch !== "all" ? queryBranch : null);
+
+  const whereClause = {};
+  if (targetBranch) {
+    whereClause.OR = [
+      { branch: targetBranch },
+      { session: { branch: targetBranch } },
+      { member: { branch: targetBranch } },
+    ];
+  }
+
   return prisma.attendance.findMany({
-    where: {
-      session: {
-        branch: user.branch,
-      },
-    },
+    where: whereClause,
     include: attendanceInclude,
     orderBy: {
       date: "desc",

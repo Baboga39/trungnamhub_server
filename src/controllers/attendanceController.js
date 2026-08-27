@@ -46,7 +46,8 @@ async function getAttendanceSummary(req, res, next) {
 async function getAttendanceAll(req, res, next) {
   try {
     const user = req.user;
-    const data = await services.attendanceService.getAttendanceAll(user);
+    const { branch } = req.query;
+    const data = await services.attendanceService.getAttendanceAll(user, branch);
     return res.ok(data, "Attendance fetched successfully");
   } catch (err) {
     next(err);
