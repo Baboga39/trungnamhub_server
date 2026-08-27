@@ -89,11 +89,41 @@ async function ensureSession(req, res, next) {
   }
 }
 
+async function findSession(req, res, next) {
+  try {
+    const { date, branch } = req.query;
+
+    if (!date) {
+      return res.status(400).json({
+        message: "Date query parameter is required",
+      });
+    }
+
+    const session = await services.sessionService.getSessionByDate(
+      new Date(date),
+      branch || null
+    );
+
+    if (!session) {
+      return res.status(404).json({
+        message: `Chưa có buổi điểm danh nào của Ngành ${branch || "này"} vào ngày này`,
+      });
+    }
+
+    return res.status(200).json({
+      data: session,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   markAttendance,
   getAttendanceByDate,
   getAttendanceByMember,
   getAttendanceAll,
   ensureSession,
+  findSession,
   getAttendanceSummary,
 };

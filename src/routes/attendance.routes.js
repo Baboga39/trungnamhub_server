@@ -35,6 +35,12 @@ router.post(
 );
 
 router.get(
+  "/find-session",
+  middlewares.auth,
+  attendanceController.findSession
+);
+
+router.get(
   "/all",
   middlewares.auth,
   attendanceController.getAttendanceAll

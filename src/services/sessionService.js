@@ -15,11 +15,29 @@ async function createSession(userId) {
 
 
 async function getSessionByDate(date, branch = null) {
-  return prisma.session.findFirst({
-    where: {
-      date,
-      branch: branch || null,
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return null;
+
+  const startOfDay = new Date(d);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(d);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const whereClause = {
+    date: {
+      gte: startOfDay,
+      lte: endOfDay,
     },
+  };
+
+  if (branch) {
+    whereClause.branch = branch;
+  }
+
+  return prisma.session.findFirst({
+    where: whereClause,
+    orderBy: { id: "desc" },
   });
 }
 
