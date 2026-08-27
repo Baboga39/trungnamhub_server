@@ -1984,7 +1984,7 @@ const generateProgramQuarterlyPDF = async (programs, year, quarters, branchLabel
   const content = [];
 
   content.push({ text: "GIA ĐÌNH HƯNG ĐẠO TRUNG NAM", style: "subHeader", alignment: "center" });
-  content.push({ text: "BAN QUẢN TRỊ & HƯỚNG DẪN ĐOÀN SINH", style: "subHeaderOrg", alignment: "center" });
+  content.push({ text: "BAN HƯỚNG DẪN ĐOÀN SINH", style: "subHeaderOrg", alignment: "center" });
   content.push({
     text: `BÁO CÁO CHƯƠNG TRÌNH SINH HOẠT QUÝ - NĂM ${year}`,
     style: "mainHeader",
