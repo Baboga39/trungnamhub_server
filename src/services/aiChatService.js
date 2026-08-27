@@ -53,7 +53,7 @@ const toolDeclarations = [
       properties: {
         groupBy: {
           type: "STRING",
-          description: "Trường cần nhóm: 'parish' (xã đạo/Xã đạo), 'church' (Họ Đạo/nhà thờ), 'gender' (giới tính), 'group' (chi đoàn/đội), 'branch' (ngành), 'birthYear' (năm sinh/độ tuổi)",
+          description: "Trường cần nhóm: 'parish' (xã đạo/Xã đạo), 'church' (Họ Đạo), 'gender' (giới tính), 'group' (chi đoàn/đội), 'branch' (ngành), 'birthYear' (năm sinh/độ tuổi)",
         },
         branch: {
           type: "STRING",
@@ -515,45 +515,84 @@ async function executeTool(toolName, args, userContext) {
 
       // 4. Tra cứu chi tiết hồ sơ cá nhân đoàn sinh
       case "search_member_profile": {
-        const query = (args.query || "").trim();
-        const where = {
-          active: true,
-          OR: [
-            { name: { contains: query, mode: "insensitive" } },
-            { parish: { contains: query, mode: "insensitive" } },
-            { group: { contains: query, mode: "insensitive" } },
-          ],
-        };
-        if (branch && branch !== "all") {
-          where.branch = branch;
+        const rawQuery = (args.query || "").trim();
+        let cleanQuery = rawQuery.replace(/^(ba|mẹ|cha|bố|phụ huynh|thông tin|hồ sơ|em|bạn|đoàn sinh|anh|chị)\s+(của\s+)?(em\s+|bạn\s+|đoàn sinh\s+)?/gi, "").trim();
+        cleanQuery = cleanQuery.replace(/\s+(là\s+ai|ở\s+đâu|sinh\s+năm\s+nào|bao\s+nhiêu\s+tuổi|như\s+thế\s+nào|mới\s+lên\s+thiếu|mới\s+lên\s+thanh|mới\s+lên\s+đồng)\??$/gi, "").trim();
+        const searchKeyword = cleanQuery || rawQuery;
+
+        const orConditions = [
+          { name: { contains: searchKeyword, mode: "insensitive" } },
+          { fatherName: { contains: searchKeyword, mode: "insensitive" } },
+          { motherName: { contains: searchKeyword, mode: "insensitive" } },
+          { parish: { contains: searchKeyword, mode: "insensitive" } },
+          { group: { contains: searchKeyword, mode: "insensitive" } },
+        ];
+        if (rawQuery && rawQuery !== searchKeyword) {
+          orConditions.push({ name: { contains: rawQuery, mode: "insensitive" } });
         }
 
-        const members = await prisma.member.findMany({
-          where,
-          take: 5,
-          include: {
-            grades: {
-              where: { year, quarter },
-              include: { category: true },
-            },
-            attendances: {
-              take: 8,
-              orderBy: { date: "desc" },
-            },
-            statusHistory: {
-              take: 3,
-              orderBy: { date: "desc" },
-            },
+        const includeObj = {
+          grades: {
+            where: { year, quarter },
+            include: { category: true },
           },
+          attendances: {
+            take: 8,
+            orderBy: { date: "desc" },
+          },
+          statusHistory: {
+            take: 5,
+            orderBy: { date: "desc" },
+          },
+        };
+
+        // 1. Fetch candidates from requested branch or all branches
+        let candidates = [];
+        if (branch && branch !== "all") {
+          candidates = await prisma.member.findMany({
+            where: {
+              branch,
+              OR: orConditions,
+            },
+            take: 30,
+            include: includeObj,
+          });
+        }
+
+        if (candidates.length === 0) {
+          candidates = await prisma.member.findMany({
+            where: {
+              OR: orConditions,
+            },
+            take: 30,
+            include: includeObj,
+          });
+        }
+
+        // 2. Score and rank candidates by name relevance
+        const sk = searchKeyword.toLowerCase();
+        const scored = candidates.map((m) => {
+          let score = 0;
+          const nameWords = m.name.toLowerCase().split(/\s+/);
+          if (nameWords.includes(sk)) score += 100; // Tên khớp từ chính xác (ví dụ: 'Anh' trong 'Lê Đức Anh')
+          if (nameWords[nameWords.length - 1] === sk) score += 50; // Tên chính (Given name)
+          if (m.name.toLowerCase().includes(sk)) score += 30;
+          if (m.fatherName && m.fatherName.toLowerCase().split(/\s+/).includes(sk)) score += 20;
+          if (m.motherName && m.motherName.toLowerCase().split(/\s+/).includes(sk)) score += 20;
+          if (m.branch === branch) score += 10;
+          return { m, score };
         });
+
+        scored.sort((a, b) => b.score - a.score);
+        let members = scored.slice(0, 5).map((s) => s.m);
 
         if (members.length === 0) {
           const matchingUsers = await prisma.user.findMany({
             where: {
               active: true,
               OR: [
-                { name: { contains: query, mode: "insensitive" } },
-                { email: { contains: query, mode: "insensitive" } },
+                { name: { contains: searchKeyword, mode: "insensitive" } },
+                { email: { contains: searchKeyword, mode: "insensitive" } },
               ],
             },
             take: 3,
@@ -576,10 +615,20 @@ async function executeTool(toolName, args, userContext) {
                 count: formattedLeaders.length,
                 isLeader: true,
                 leaders: formattedLeaders,
-                note: `Không tìm thấy đoàn sinh tên '${query}', nhưng tìm thấy thông tin trưởng / Ban Quản Trị trong hệ thống.`,
+                note: `Không tìm thấy đoàn sinh tên '${searchKeyword}', nhưng tìm thấy thông tin trưởng / Ban Quản Trị trong hệ thống.`,
               },
             };
           }
+
+          return {
+            success: true,
+            data: {
+              count: 0,
+              members: [],
+              searchedKeyword: searchKeyword,
+              note: `Không tìm thấy thông tin đoàn sinh nào tên '${searchKeyword}' trong hệ thống Gia Đình Hưng Đạo Trung Nam.`,
+            },
+          };
         }
 
         const formatted = members.map((m) => {
@@ -603,6 +652,7 @@ async function executeTool(toolName, args, userContext) {
             gender: m.gender || "—",
             birthDate: m.birthDate ? new Date(m.birthDate).toLocaleDateString("vi-VN") : "—",
             branch: m.branch,
+            active: m.active,
             group: m.group || "—",
             parish: m.parish || "—",
             church: m.church || "—",
@@ -623,6 +673,7 @@ async function executeTool(toolName, args, userContext) {
             })),
             statusHistory: m.statusHistory.map((s) => ({
               type: s.type,
+              note: s.note,
               date: new Date(s.date).toLocaleDateString("vi-VN"),
               fromBranch: s.fromBranch,
               toBranch: s.toBranch,
@@ -1770,12 +1821,26 @@ async function executeTool(toolName, args, userContext) {
 
       // 35. Mức độ chuẩn bị bài học & giáo án Quý (Microservice Program)
       case "get_lesson_preparation_readiness": {
+        const targetYear = year || new Date().getFullYear();
+        const targetQuarter = quarter || (Math.floor(new Date().getMonth() / 3) + 1);
+
         let programs = [];
+        const serviceToken = jwt.sign(
+          {
+            userId: userContext?.id || userContext?.userId || 1,
+            email: userContext?.email || "ai-service@trungnam.org",
+            role: userContext?.role || "admin",
+            branch: userContext?.branch || null,
+          },
+          JWT_SECRET,
+          { expiresIn: "10m" }
+        );
+
         try {
-          const serviceToken = jwt.sign({ userId: 1, email: "ai-service@trungnam.org", role: "admin" }, JWT_SECRET, { expiresIn: "10m" });
           const pRes = await axios.get(`${PROGRAM_SERVER_URL}/api/v1/programs`, {
+            params: { year: targetYear, quarter: targetQuarter },
             headers: { Authorization: `Bearer ${serviceToken}` },
-            timeout: 5000,
+            timeout: 10000,
           });
           programs = pRes.data?.data?.programs || pRes.data?.data || [];
         } catch (err) {
@@ -1783,9 +1848,10 @@ async function executeTool(toolName, args, userContext) {
         }
 
         const filtered = programs.filter((p) => {
-          if (p.year && Number(p.year) !== year) return false;
-          if (p.quarter && Number(p.quarter) !== quarter) return false;
-          if (branch !== "all" && p.branchId !== branch) return false;
+          if (p.year && Number(p.year) !== Number(targetYear)) return false;
+          if (p.quarter && Number(p.quarter) !== Number(targetQuarter)) return false;
+          const pBranch = p.branch?.name || p.branchId;
+          if (branch && branch !== "all" && pBranch !== branch) return false;
           return true;
         });
 
@@ -1796,35 +1862,56 @@ async function executeTool(toolName, args, userContext) {
         const lessonList = [];
 
         for (const prog of filtered) {
-          const lessons = prog.lessons || [];
-          totalLessons += lessons.length;
-          for (const l of lessons) {
-            if (l.prepared) preparedCount++;
-            if (l.leaders && l.leaders.length > 0) assignedLeaderCount++;
-            if (l.files && l.files.length > 0) withFilesCount++;
-            lessonList.push({
-              title: l.title || l.name,
-              branch: prog.branchId || "—",
-              date: l.date ? new Date(l.date).toLocaleDateString("vi-VN") : "—",
-              prepared: l.prepared ? "✅ Đã chuẩn bị" : "⏳ Chưa chuẩn bị",
-              leaders: l.leaders?.map((ldr) => ldr.name || `HT #${ldr.userId}`).join(", ") || "Chưa phân công",
-              filesCount: l.files?.length || 0,
+          try {
+            const detailRes = await axios.get(`${PROGRAM_SERVER_URL}/api/v1/programs/${prog.id}`, {
+              headers: { Authorization: `Bearer ${serviceToken}` },
+              timeout: 10000,
             });
+            const fullProg = detailRes.data?.data || prog;
+            const branchName = fullProg.branch?.name || fullProg.branchId || prog.branchId || "—";
+            const lessons = fullProg.lessons || [];
+
+            totalLessons += lessons.length;
+            for (const l of lessons) {
+              const leaders = (l.leaders || []).map((ldr) => ldr.name).filter(Boolean);
+              const files = (l.files || []).map((f) => f.fileName || f.originalName).filter(Boolean);
+              if (l.prepared) preparedCount++;
+              if (leaders.length > 0) assignedLeaderCount++;
+              if (files.length > 0) withFilesCount++;
+
+              lessonList.push({
+                lessonText: l.lessonText || "Bài học",
+                branch: branchName,
+                date: l.date ? new Date(l.date).toLocaleDateString("vi-VN") : "—",
+                category: l.commonProgram?.name || "Kỹ năng / Giáo luật",
+                location: l.location?.name || "Báo Ân Đường",
+                duration: l.durationMinutes ? `${l.durationMinutes} phút` : "90 phút",
+                prepared: l.prepared ? "Đã chuẩn bị" : (leaders.length > 0 && files.length > 0 ? "Đã sẵn sàng" : "Chưa hoàn tất"),
+                leaders: leaders.length > 0 ? leaders.join(", ") : "Chưa phân công",
+                filesCount: files.length,
+                files: files.join(", ") || "Chưa có tài liệu",
+              });
+            }
+          } catch (err) {
+            console.warn(`Error fetching program ${prog.id} details:`, err.message);
           }
         }
+
+        const readinessRate = totalLessons > 0 ? `${Math.round(((assignedLeaderCount + withFilesCount) / (totalLessons * 2)) * 100)}%` : "0%";
 
         return {
           success: true,
           data: {
-            year,
-            quarter,
+            year: targetYear,
+            quarter: targetQuarter,
             branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
+            totalPrograms: filtered.length,
+            programStatus: filtered.map((p) => `${p.branch?.name || p.branchId || "Ngành"}: ${p.status || "DRAFT"}`).join(", "),
             totalLessons,
             preparedCount,
-            unpreparedCount: Math.max(0, totalLessons - preparedCount),
             assignedLeaderCount,
             withFilesCount,
-            readinessRate: totalLessons > 0 ? `${((preparedCount / totalLessons) * 100).toFixed(1)}%` : "0%",
+            readinessRate,
             lessons: lessonList,
           },
         };
@@ -2143,6 +2230,7 @@ QUY TẮC BẮT BUỘC VỀ DANH XƯNG & THUẬT NGỮ (TUÂN THỦ 100%):
 Nguyên tắc bắt buộc:
 1. 100% DỮ LIỆU THỰC TẾ TỪ DATABASE: Mọi thông tin (độ tuổi, năm sinh, sĩ số, chuyên cần, điểm số, nhân sự, giáo án, phê duyệt) BẮT BUỘC phải gọi Công cụ (AI Tools) để truy vấn từ cơ sở dữ liệu. Tuyệt đối không tự suy diễn hoặc dùng kiến thức lý thuyết chung ngoài đời.
 2. Khi người dùng hỏi về ĐỘ TUỔI, NĂM SINH, CƠ CẤU NHÂN KHẨU (ví dụ: "các bạn độ tuổi từ bao nhiêu đến bao nhiêu", "bao nhiêu tuổi", "sinh năm mấy"): BẮT BUỘC gọi công cụ \`get_member_demographics\` với tham số \`groupBy: 'birthYear'\` để tính toán độ tuổi thực tế từ Database.
+3. TUYỆT ĐỐI KHÔNG HỨA HẸN ẢO: Bạn chỉ là Trợ lý tra cứu (Read-Only), KHÔNG CÓ QUYỀN tự động sửa code, sửa database hay tự gửi báo cáo kỹ thuật. Tuyệt đối không nói các câu hứa hẹn ảo như "tôi đã ghi nhận để báo cáo kỹ thuật cập nhật lại". Nếu dữ liệu chưa chính xác, hãy giải thích trung thực về dữ liệu hiện tại trong hệ thống.
 
 Danh sách 36 Công cụ (AI Tools) chuyên sâu bạn sở hữu:
 1. 📊 Điều hành & Tổng quan: \`get_executive_overview\`, \`get_branch_performance\`, \`get_yearly_summary_report\`, \`get_system_health_and_data_summary\`
@@ -2240,44 +2328,73 @@ async function generateFallbackResponse(message, userContext) {
       return md;
     }
 
-    // 2. Tra cứu chi tiết hồ sơ đoàn sinh
-    if (q.includes("tìm em") || q.includes("thông tin em") || q.includes("hồ sơ") || q.includes("đoàn sinh tên") || q.includes("ai là") || q.includes("tìm đoàn sinh")) {
-      const searchWords = message.replace(/(tìm|thông tin|hồ sơ|đoàn sinh|em|ai là)/gi, "").trim();
-      const where = {
-        active: true,
-        OR: [
-          { name: { contains: searchWords, mode: "insensitive" } },
-          { parish: { contains: searchWords, mode: "insensitive" } },
-        ],
-      };
-      if (branch !== "all") where.branch = branch;
+    // 2. Tra cứu chi tiết hồ sơ đoàn sinh / phụ huynh / người phụ trách
+    const isMemberQuery =
+      q.includes("tìm") ||
+      q.includes("thông tin") ||
+      q.includes("hồ sơ") ||
+      q.includes("đoàn sinh") ||
+      q.includes("ai là") ||
+      q.includes("là ai") ||
+      q.includes("ba của") ||
+      q.includes("ba cua") ||
+      q.includes("mẹ của") ||
+      q.includes("me cua") ||
+      q.includes("bố của") ||
+      q.includes("bo cua") ||
+      q.includes("cha của") ||
+      q.includes("cha cua") ||
+      q.includes("phụ huynh") ||
+      q.includes("phu huynh") ||
+      q.includes("bạn") ||
+      q.includes("ban ");
 
-      const members = await prisma.member.findMany({
-        where,
-        take: 3,
-        include: {
-          grades: { where: { year: currentYear, quarter: currentQuarter }, include: { category: true } },
-          attendances: { take: 5, orderBy: { date: "desc" } },
-        },
-      });
+    if (isMemberQuery) {
+      let searchWords = message
+        .replace(/(còn|xem|cho tôi biết|cho hoi|cho hỏi|tìm|thông tin|hồ sơ|đoàn sinh|em|bạn|ban|anh|chị|ba của|ba cua|mẹ của|me cua|cha của|cha cua|bố của|bo cua|phụ huynh của|phu huynh cua|phụ huynh|phu huynh|ai là|là ai|la ai)\s*/gi, " ")
+        .replace(/[?!.,]/g, "")
+        .trim();
 
-      if (members.length === 0) {
-        return `Không tìm thấy đoàn sinh nào phù hợp với từ khóa **"${searchWords}"** trong phạm vi quản lý của bạn.`;
-      }
+      if (searchWords) {
+        const where = {
+          active: true,
+          OR: [
+            { name: { contains: searchWords, mode: "insensitive" } },
+            { parish: { contains: searchWords, mode: "insensitive" } },
+            { group: { contains: searchWords, mode: "insensitive" } },
+          ],
+        };
+        if (branch !== "all") where.branch = branch;
 
-      let md = `### 🔍 Kết quả tìm kiếm đoàn sinh ("${searchWords}")\n\n`;
-      members.forEach((m) => {
-        md += `#### 👤 **${m.name}** (Ngành ${m.branch} - Chi đoàn: ${m.group || "—"})\n`;
-        md += `- **Ngày sinh:** ${m.birthDate ? new Date(m.birthDate).toLocaleDateString("vi-VN") : "—"} | **Giới tính:** ${m.gender || "—"}\n`;
-        md += `- **Xã đạo:** ${m.parish || "—"} | **Họ Đạo:** ${m.church || "—"}\n`;
-        md += `- **Cha mẹ:** ${m.fatherName || "—"} / ${m.motherName || "—"} | **SĐT:** ${m.contact || "—"}\n`;
-        md += `- **Địa chỉ:** ${m.address || "—"}\n`;
-        if (m.grades?.length > 0) {
-          md += `- **Điểm các môn (Q${currentQuarter}):** ` + m.grades.map((g) => `${g.category?.name}: **${g.score}**`).join(", ") + `\n`;
+        const members = await prisma.member.findMany({
+          where,
+          take: 3,
+          include: {
+            grades: { where: { year: currentYear, quarter: currentQuarter }, include: { category: true } },
+            attendances: { take: 5, orderBy: { date: "desc" } },
+          },
+        });
+
+        if (members.length === 0) {
+          return `Chào Trưởng, tôi đã tra cứu trong hệ thống Gia Đình Hưng Đạo Trung Nam nhưng hiện tại **không tìm thấy đoàn sinh nào tên "${searchWords}"** (hoặc thông tin chưa được cập nhật). Trưởng vui lòng kiểm tra lại họ tên hoặc Ngành của em nhé!`;
         }
-        md += `\n---\n`;
-      });
-      return md;
+
+        let md = `### 🔍 Kết quả Tra cứu Đoàn sinh ("${searchWords}")\n\n`;
+        members.forEach((m) => {
+          md += `#### 👤 **${m.name}** (Ngành ${m.branch} - Chi đoàn: ${m.group || "—"})\n`;
+          md += `- **Ngày sinh:** ${m.birthDate ? new Date(m.birthDate).toLocaleDateString("vi-VN") : "*(Chưa cập nhật)*"} | **Giới tính:** ${m.gender || "—"}\n`;
+          md += `- **Xã đạo:** ${m.parish || "*(Chưa cập nhật)*"} | **Họ Đạo:** ${m.church || "*(Chưa cập nhật)*"}\n`;
+          md += `- **Cha / Ba:** ${m.fatherName && m.fatherName !== "—" ? `**${m.fatherName}**` : "*(Chưa có thông tin)*"}\n`;
+          md += `- **Mẹ:** ${m.motherName && m.motherName !== "—" ? `**${m.motherName}**` : "*(Chưa có thông tin)*"}\n`;
+          md += `- **SĐT liên hệ:** ${m.contact && m.contact !== "—" ? `\`${m.contact}\`` : "*(Chưa có thông tin)*"}\n`;
+          md += `- **Địa chỉ:** ${m.address || "*(Chưa cập nhật)*"}\n`;
+          if (m.grades?.length > 0) {
+            md += `- **Điểm các môn (Q${currentQuarter}):** ` + m.grades.map((g) => `${g.category?.name}: **${g.score}**`).join(", ") + `\n`;
+          }
+          md += `\n---\n`;
+        });
+        return md;
+      }
     }
 
     // 3. Tra cứu nguy cơ / cảnh báo
@@ -2417,12 +2534,50 @@ async function callGeminiApi(payload) {
 // ─────────────────────────────────────────────────────────────────────────────
 function formatToolResultToMarkdown(toolName, result) {
   if (!result || !result.success || !result.data) {
-    return result?.error ? `Lỗi tra cứu: ${result.error}` : "Đã tra cứu dữ liệu nhưng không tìm thấy thông tin phù hợp.";
+    return result?.error ? `⚠️ Lỗi tra cứu: ${result.error}` : "🔍 Đã tra cứu dữ liệu nhưng không tìm thấy thông tin phù hợp trong hệ thống.";
   }
 
   const d = result.data;
 
   switch (toolName) {
+    case "search_member_profile": {
+      const members = d.members || [];
+      const leaders = d.leaders || [];
+
+      if (d.isLeader && leaders.length > 0) {
+        let md = `### 👤 Thông tin Trưởng / Ban Quản Trị\n\n`;
+        leaders.forEach((u) => {
+          md += `#### ⭐ **${u.name}** (${u.role || "Trưởng"})\n`;
+          md += `- **Phụ trách:** ${u.branch || "Gia Đình Hưng Đạo Trung Nam"}\n`;
+          md += `- **Email:** \`${u.email || "Chưa có"}\` | **Thâm niên:** từ năm ${u.startYear || "—"}\n`;
+        });
+        return md;
+      }
+
+      if (members.length === 0) {
+        return d.note || `🔍 **Không tìm thấy thông tin đoàn sinh nào** phù hợp với từ khóa tra cứu trong hệ thống Gia Đình Hưng Đạo Trung Nam.`;
+      }
+
+      let md = `### 👤 Kết quả Tra cứu Hồ sơ Đoàn sinh\n\n`;
+      members.forEach((m) => {
+        md += `#### 📋 **${m.name}** (Ngành ${m.branch || "—"} - Chi đoàn/Đội: ${m.group || "—"})\n`;
+        md += `- **Ngày sinh:** ${m.birthDate && m.birthDate !== "—" ? m.birthDate : "*(Chưa cập nhật)*"} | **Giới tính:** ${m.gender || "—"}\n`;
+        md += `- **Họ Đạo:** ${m.church && m.church !== "—" ? m.church : "*(Chưa cập nhật)*"} | **Xã đạo:** ${m.parish && m.parish !== "—" ? m.parish : "*(Chưa cập nhật)*"}\n`;
+        md += `- **Cha / Ba:** ${m.fatherName && m.fatherName !== "—" ? `**${m.fatherName}**` : "*(Chưa có thông tin)*"}\n`;
+        md += `- **Mẹ:** ${m.motherName && m.motherName !== "—" ? `**${m.motherName}**` : "*(Chưa có thông tin)*"}\n`;
+        md += `- **SĐT liên hệ:** ${m.contact && m.contact !== "—" ? `\`${m.contact}\`` : "*(Chưa có thông tin)*"}\n`;
+        md += `- **Địa chỉ:** ${m.address && m.address !== "—" ? m.address : "*(Chưa cập nhật)*"}\n`;
+        if (m.averageScore && m.averageScore !== "Chưa có") {
+          md += `- **Điểm trung bình:** **${m.averageScore}/10**\n`;
+        }
+        if (m.recentAttendanceRate && m.recentAttendanceRate !== "Chưa có") {
+          md += `- **Chuyên cần gần đây:** **${m.recentAttendanceRate}**\n`;
+        }
+        md += `\n---\n`;
+      });
+      return md;
+    }
+
     case "get_documents_and_approvals": {
       const qProgs = d.quarterPrograms || d.allQuarterPrograms || [];
       const docs = d.documents || [];
@@ -2451,6 +2606,7 @@ function formatToolResultToMarkdown(toolName, result) {
       }
       return md;
     }
+
     case "get_quarterly_birthdays": {
       const bdays = d.birthdays || d.members || [];
       if (bdays.length === 0) return `Hiện chưa ghi nhận sinh nhật nào trong thời gian này (${d.branch}).`;
@@ -2465,10 +2621,94 @@ function formatToolResultToMarkdown(toolName, result) {
       });
       return md;
     }
+
+    case "get_executive_overview": {
+      return `### 📊 Báo cáo Tổng quan Quý (${d.branch || "Gia Đình Hưng Đạo Trung Nam"})\n\n` +
+        `- **Tổng số Đoàn sinh:** **${d.totalMembers?.value || 0}** em\n` +
+        `- **Tỷ lệ Chuyên cần:** **${d.attendanceRate?.value || 0}%**\n` +
+        `- **Điểm Đánh giá TB:** **${d.averageScore?.value || 0} / 10**\n` +
+        `- **Đoàn sinh cần lưu ý (Cảnh báo):** **${d.riskMembers?.value || 0}** em\n`;
+    }
+
+    case "get_top_members":
+    case "get_top_performers": {
+      const list = d.topMembers || d.members || d.list || [];
+      if (list.length === 0) return `Hiện chưa có dữ liệu xếp hạng thi đua cho nhóm đối tượng này.`;
+      let md = `### 🏆 Bảng Vàng Thi Đua & Thành Tích\n\n`;
+      md += `| Xếp hạng | Đoàn sinh | Ngành | Chi đoàn/Đội | Điểm TB | Chuyên cần |\n`;
+      md += `| :---: | :--- | :--- | :--- | :---: | :---: |\n`;
+      list.forEach((m, idx) => {
+        md += `| **#${idx + 1}** | **${m.fullName || m.name}** | ${m.branch || "—"} | ${m.group || "—"} | **${m.score || m.averageGrade || "—"}** | ${m.attendanceRate || "—"} |\n`;
+      });
+      return md;
+    }
+
+    case "get_risk_members":
+    case "get_at_risk_members": {
+      const list = d.riskMembers || d.members || d.list || [];
+      if (list.length === 0) return `Hiện tại không có đoàn sinh nào thuộc diện cảnh báo nguy cơ. Tỷ lệ chuyên cần và học tập duy trì rất tốt! 🎉`;
+      let md = `### ⚠️ Danh sách Đoàn sinh thuộc Diện Cảnh báo\n\n`;
+      md += `| Đoàn sinh | Ngành | Điểm TB | Vắng quy đổi | Lý do cảnh báo |\n`;
+      md += `| :--- | :--- | :---: | :---: | :--- |\n`;
+      list.forEach((m) => {
+        md += `| **${m.fullName || m.name}** | ${m.branch || "—"} | ${m.averageGrade || m.score || "—"} | ${m.attendanceEquivalent || m.absentCount || 0}b | ${m.reasons?.join("; ") || m.reason || "Chuyên cần thấp"} |\n`;
+      });
+      return md;
+    }
+
+    case "get_member_demographics": {
+      const ranking = d.ranking || [];
+      if (ranking.length === 0) return `Chưa có dữ liệu thống kê cơ cấu đoàn sinh theo tiêu chí này.`;
+      let md = `### 📍 Thống kê Phân bố Đoàn sinh (${d.branch || "Toàn đoàn"})\n\n`;
+      md += `| Phân loại | Số lượng | Tỷ lệ |\n`;
+      md += `| :--- | :---: | :---: |\n`;
+      ranking.forEach((r) => {
+        md += `| **${r.name}** | ${r.count} em | ${r.percentage || r.pct || ""}% |\n`;
+      });
+      return md;
+    }
+
+    case "get_lesson_preparation_readiness": {
+      const lessons = d.lessons || [];
+      let md = `### 📖 Mức độ Sẵn sàng Giáo án & Bài học (Quý ${d.quarter}/${d.year} - ${d.branch})\n\n`;
+      md += `- **Tổng số bài học:** **${d.totalLessons} bài** (Trạng thái chương trình: **${d.programStatus || "Đang thực hiện"}**)\n`;
+      md += `- **Tỷ lệ sẵn sàng:** **${d.readinessRate}**\n`;
+      md += `- **Đã phân công Trưởng phụ trách:** **${d.assignedLeaderCount}/${d.totalLessons} bài**\n`;
+      md += `- **Đã có file/tài liệu đính kèm:** **${d.withFilesCount}/${d.totalLessons} bài**\n\n`;
+
+      if (lessons.length > 0) {
+        md += `#### 📋 Danh sách chi tiết các bài học:\n`;
+        md += `| Ngày | Tên bài học | Chủ đề / Môn | Địa điểm | Trưởng phụ trách | Tài liệu đính kèm | Trạng thái |\n`;
+        md += `| :---: | :--- | :--- | :--- | :--- | :--- | :---: |\n`;
+        lessons.forEach((l) => {
+          md += `| ${l.date} | **${l.lessonText}** | ${l.category} | ${l.location} | ${l.leaders} | ${l.files} | ${l.prepared} |\n`;
+        });
+      } else {
+        md += `*Hiện chưa có bài học nào được lên kế hoạch cho thời gian này.*\n`;
+      }
+      return md;
+    }
+
     default: {
-      return `Dưới đây là kết quả tra cứu dữ liệu thực tế từ hệ thống:\n\n` + (d.summaryMessage || JSON.stringify(d, null, 2));
+      if (d.summaryMessage) return d.summaryMessage;
+      if (d.note) return d.note;
+      if (Array.isArray(d) && d.length === 0) return `🔍 Không tìm thấy dữ liệu phù hợp trong hệ thống.`;
+      if (d.count === 0 || (Array.isArray(d.members) && d.members.length === 0)) {
+        return `🔍 Không tìm thấy dữ liệu phù hợp trong hệ thống.`;
+      }
+      return `Dưới đây là kết quả tra cứu dữ liệu thực tế từ hệ thống:\n\n` + JSON.stringify(d, null, 2);
     }
   }
+}
+
+function sanitizeAiResponse(text) {
+  if (!text || typeof text !== "string") return text;
+  return text
+    .replace(/Huynh [Tt]rưởng/g, "Trưởng")
+    .replace(/Huỳnh [Tt]rưởng/g, "Trưởng")
+    .replace(/huynh trưởng/gi, "Trưởng")
+    .replace(/Huynh Trưởng/gi, "Trưởng")
+    .replace(/huỳnh trưởng/gi, "Trưởng");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2490,7 +2730,7 @@ async function processChatMessage({ message, history = [], userContext }) {
     console.log("ℹ️ GEMINI_API_KEY chưa cấu hình, sử dụng Smart Analytic Fallback");
     const fallbackText = await generateFallbackResponse(normalizedMessage, userContext);
     return {
-      reply: fallbackText,
+      reply: sanitizeAiResponse(fallbackText),
       modelUsed: "local-analyst-fallback",
     };
   }
@@ -2598,14 +2838,6 @@ async function processChatMessage({ message, history = [], userContext }) {
           ? formatToolResultToMarkdown(lastToolName, lastToolResult)
           : await generateFallbackResponse(trimmedMessage, userContext);
       }
-
-function sanitizeAiResponse(text) {
-  if (!text || typeof text !== "string") return text;
-  return text
-    .replace(/Huynh [Tt]rưởng/g, "Trưởng")
-    .replace(/Huỳnh [Tt]rưởng/g, "Trưởng")
-    .replace(/huynh trưởng/gi, "Trưởng");
-}
 
       return {
         reply: sanitizeAiResponse(reply),
