@@ -30,7 +30,7 @@ const toolDeclarations = [
       properties: {
         year: { type: "INTEGER", description: "Năm cần tra cứu (ví dụ: 2026)" },
         quarter: { type: "INTEGER", description: "Quý cần tra cứu (1, 2, 3 hoặc 4)" },
-        branch: { type: "STRING", description: "Tên Ngành (Đồng, Thiếu, Thanh, hoặc 'all' cho toàn Gia Đình Hưng Đạo)" },
+        branch: { type: "STRING", description: "Tên Ngành (Đồng, Thiếu, Thanh, hoặc 'all' cho toàn Gia Đình Hưng Đạo Trung Nam)" },
       },
     },
   },
@@ -57,7 +57,7 @@ const toolDeclarations = [
         },
         branch: {
           type: "STRING",
-          description: "Ngành lọc (Đồng, Thiếu, Thanh, hoặc 'all' cho toàn Gia Đình Hưng Đạo)",
+          description: "Ngành lọc (Đồng, Thiếu, Thanh, hoặc 'all' cho toàn Gia Đình Hưng Đạo Trung Nam)",
         },
       },
     },
@@ -180,7 +180,7 @@ const toolDeclarations = [
   },
   {
     name: "get_quarterly_birthdays",
-    description: "Tra cứu danh sách đoàn sinh có sinh nhật trong Quý hoặc Tháng cụ thể (ngày sinh, tháng sinh, tuổi, ngành, chi đoàn, Xã đạo/xã đạo, mừng tuổi mới) của các ngành hoặc toàn Gia Đình Hưng Đạo.",
+    description: "Tra cứu danh sách đoàn sinh có sinh nhật trong Quý hoặc Tháng cụ thể (ngày sinh, tháng sinh, tuổi, ngành, chi đoàn, Xã đạo/xã đạo, mừng tuổi mới) của các ngành hoặc toàn Gia Đình Hưng Đạo Trung Nam.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -205,7 +205,7 @@ const toolDeclarations = [
   },
   {
     name: "get_attendance_streak_leaderboard",
-    description: "Bảng vàng chuỗi chuyên cần (Top đoàn sinh có chuỗi tham gia sinh hoạt liên tục dài nhất hiện tại và kỷ lục dài nhất lịch sử). Có thể lọc theo ngành hoặc xem toàn xứ đoàn.",
+    description: "Bảng vàng chuỗi chuyên cần (Top đoàn sinh có chuỗi tham gia sinh hoạt liên tục dài nhất hiện tại và kỷ lục dài nhất lịch sử). Có thể lọc theo ngành hoặc xem toàn Gia Đình Hưng Đạo.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -330,7 +330,7 @@ const toolDeclarations = [
   },
   {
     name: "get_branch_contact_representatives",
-    description: "Danh bạ đại diện liên lạc chính thức của từng ngành (Xứ Đoàn Trưởng, Thiếu Trưởng, Đồng Trưởng, Thanh Trưởng) để phụ huynh hoặc người mới tiện liên hệ.",
+    description: "Danh bạ đại diện liên lạc chính thức của từng ngành (Gia Đình Hưng Đạo Trưởng, Thiếu Trưởng, Đồng Trưởng, Thanh Trưởng) để phụ huynh hoặc người mới tiện liên hệ.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -344,7 +344,7 @@ const toolDeclarations = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     name: "get_sibling_family_groups",
-    description: "Tìm kiếm các gia đình có từ 2 anh chị em ruột trở lên cùng sinh hoạt trong Xứ Đoàn (cùng SĐT phụ huynh hoặc cùng ba mẹ/địa chỉ) để hỗ trợ liên lạc gia đình.",
+    description: "Tìm kiếm các gia đình có từ 2 anh chị em ruột trở lên cùng sinh hoạt trong Gia Đình Hưng Đạo (cùng SĐT phụ huynh hoặc cùng ba mẹ/địa chỉ) để hỗ trợ liên lạc gia đình.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -564,7 +564,7 @@ async function executeTool(toolName, args, userContext) {
               id: u.id,
               name: u.name,
               role: u.role || "trưởng",
-              branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo",
+              branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo Trung Nam",
               email: u.email,
               eventsOrganized: u.sumEvent || 0,
               startYear: u.startYear ? new Date(u.startYear).getFullYear() : "—",
@@ -705,7 +705,7 @@ async function executeTool(toolName, args, userContext) {
           return {
             sessionId: s.id,
             date: new Date(s.date).toLocaleDateString("vi-VN"),
-            branch: s.branch ? `Ngành ${s.branch}` : "Toàn Gia Đình Hưng Đạo",
+            branch: s.branch ? `Ngành ${s.branch}` : "Toàn Gia Đình Hưng Đạo Trung Nam",
             totalExpected,
             presentCount: present,
             absentCount: absent,
@@ -891,7 +891,7 @@ async function executeTool(toolName, args, userContext) {
           return {
             sessionId: s.id,
             date: new Date(s.date).toLocaleDateString("vi-VN"),
-            branch: s.branch ? `Ngành ${s.branch}` : "Toàn Gia Đình Hưng Đạo",
+            branch: s.branch ? `Ngành ${s.branch}` : "Toàn Gia Đình Hưng Đạo Trung Nam",
             totalExpected,
             presentCount: present,
             absentCount: absent,
@@ -911,7 +911,7 @@ async function executeTool(toolName, args, userContext) {
           data: {
             year,
             quarter,
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
             curriculumStatus: programStatus,
             lessonSchedule: programLessons,
             totalWeeklySessions: formattedSessions.length,
@@ -946,7 +946,7 @@ async function executeTool(toolName, args, userContext) {
         const formatted = users.map((u) => ({
           name: u.name,
           role: u.role || "trưởng",
-          branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo",
+          branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo Trung Nam",
           email: u.email,
           eventsOrganized: u.sumEvent || 0,
           startYear: u.startYear ? new Date(u.startYear).getFullYear() : "—",
@@ -1051,7 +1051,7 @@ async function executeTool(toolName, args, userContext) {
           data: {
             quarter,
             year,
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
             totalBirthdays: filteredMembers.length,
             byMonth: data.byMonth,
             birthdays: filteredMembers.map((m) => ({
@@ -1129,7 +1129,7 @@ async function executeTool(toolName, args, userContext) {
         return {
           success: true,
           data: {
-            branch: targetBranch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${targetBranch}`,
+            branch: targetBranch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${targetBranch}`,
             count: streaks.length,
             topStreaks: streaks.map((s, idx) => ({
               rank: idx + 1,
@@ -1262,7 +1262,7 @@ async function executeTool(toolName, args, userContext) {
           data: {
             year,
             quarter,
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
             totalMembers,
             gradedCount,
             unratedCount,
@@ -1402,7 +1402,7 @@ async function executeTool(toolName, args, userContext) {
           success: true,
           data: {
             filterYear: filterYear || "Tất cả các năm gần đây",
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
             totalEnrolledInYear: filterYear ? totalJoinedInYear : newMembers.length,
             newlyEnrolledMembers: newMembers.map((m) => ({
               memberName: m.name,
@@ -1436,7 +1436,7 @@ async function executeTool(toolName, args, userContext) {
         return {
           success: true,
           data: {
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
             totalGroups: groups.length,
             groups: groups.map((g) => ({
               branch: g.branch ? `Ngành ${g.branch}` : "Chưa phân ngành",
@@ -1470,7 +1470,7 @@ async function executeTool(toolName, args, userContext) {
             leaderStats: users.map((u) => ({
               name: u.name,
               role: u.role || "trưởng",
-              branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo",
+              branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo Trung Nam",
               eventsOrganized: u.sumEvent || u._count.activitiesCreated || 0,
               sessionsCreated: u._count.sessionsCreated || 0,
               attendancesMarked: u._count.attendancesMarked || 0,
@@ -1549,7 +1549,7 @@ async function executeTool(toolName, args, userContext) {
           success: true,
           data: {
             year: targetYear,
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
             totalActiveMembers: totalMembers,
             totalSessionsHeld: allSessions.length,
             totalActivitiesOrganized: allActivities.length,
@@ -1646,7 +1646,7 @@ async function executeTool(toolName, args, userContext) {
         const representatives = users.map((u) => ({
           name: u.name,
           role: u.role === "admin" ? "Ban Quản Trị (Admin)" : u.role || "trưởng",
-          branch: u.branch ? `Ngành ${u.branch}` : "Toàn Xứ Đoàn",
+          branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo",
           email: u.email || "—",
         }));
 
@@ -1754,7 +1754,7 @@ async function executeTool(toolName, args, userContext) {
         return {
           success: true,
           data: {
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
             count: inactiveMembers.length,
             members: inactiveMembers.map((m) => ({
               name: m.name,
@@ -1818,7 +1818,7 @@ async function executeTool(toolName, args, userContext) {
           data: {
             year,
             quarter,
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
             totalLessons,
             preparedCount,
             unpreparedCount: Math.max(0, totalLessons - preparedCount),
@@ -1873,7 +1873,7 @@ async function executeTool(toolName, args, userContext) {
           data: {
             year,
             quarter,
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
             count: anomalies.length,
             anomalies: anomalies.sort((a, b) => b.gap - a.gap).slice(0, 10),
           },
@@ -1965,7 +1965,7 @@ async function executeTool(toolName, args, userContext) {
           success: true,
           data: {
             year,
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
             totalSessions: sessions.length,
             distribution: Object.entries(dayStats).map(([day, st]) => ({
               day,
@@ -2014,7 +2014,7 @@ async function executeTool(toolName, args, userContext) {
         return {
           success: true,
           data: {
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
             totalActiveMembersInScope: totalBranchMembers,
             unassignedGroupMembersCount: unassignedMembers.length,
             unassignedLeadersCount: unassignedLeaders.length,
@@ -2126,12 +2126,18 @@ async function executeTool(toolName, args, userContext) {
 function buildSystemPrompt(userContext) {
   const currentYear = new Date().getFullYear();
   const currentQuarter = Math.floor(new Date().getMonth() / 3) + 1;
-  const userRole = userContext?.role === "admin" ? "Ban Quản Trị (Admin)" : "Huỳnh Trưởng";
-  const branchScope = "Bạn có thể xem toàn bộ dữ liệu tất cả các Ngành (Đồng, Thiếu, Thanh) mà không bị giới hạn. Luôn tra cứu đúng ngành mà người dùng đề cập trong câu hỏi. Nếu không đề cập ngành cụ thể, hãy trả về tổng hợp toàn Gia Đình Hưng Đạo.";
+  const userRole = userContext?.role === "admin" ? "Ban Quản Trị (Admin)" : "Trưởng";
+  const branchScope = "Bạn có thể xem toàn bộ dữ liệu tất cả các Ngành (Đồng, Thiếu, Thanh) mà không bị giới hạn. Luôn tra cứu đúng ngành mà người dùng đề cập trong câu hỏi. Nếu không đề cập ngành cụ thể, hãy trả về tổng hợp toàn Gia Đình Hưng Đạo Trung Nam.";
 
-  return `Bạn là Trợ lý AI Phân tích Dữ liệu Toàn diện của Trung Nam Hub, hệ thống quản trị Gia Đình Hưng Đạo Thiếu Nhi Thánh Thể.
+  return `Bạn là Trợ lý AI Phân tích Dữ liệu Toàn diện của Trung Nam Hub, hệ thống quản trị Gia Đình Hưng Đạo Trung Nam (Thiếu Nhi Thánh Thể).
 Vai trò người dùng hiện tại: ${userRole}.
 ${branchScope}
+
+QUY TẮC BẮT BUỘC VỀ DANH XƯNG & THUẬT NGỮ (TUÂN THỦ 100%):
+1. TUYỆT ĐỐI KHÔNG SỬ DỤNG TỪ "Huynh trưởng" HOẶC "Huỳnh trưởng" DƯỚI BẤT KỲ HÌNH THỨC NÀO.
+2. Xưng hô với người dùng là "Trưởng" hoặc "bạn" (ví dụ: "Trưởng có cần tôi hỗ trợ thêm thông tin gì không?", "Chào bạn...").
+3. Khi nhắc đến các anh/chị phụ trách, chỉ gọi là "Trưởng [Tên]" hoặc chức vụ chính thức (ví dụ: "Trưởng Phạm Ngọc Duy", "Trưởng ban hướng dẫn", "Thiếu Trưởng", "Thiếu Phó", "Thanh Trưởng", "Vườn Trưởng", "Ban Quản Trị"...), tuyệt đối KHÔNG thêm chữ "Huynh trưởng".
+4. Tên tổ chức luôn là "Gia Đình Hưng Đạo Trung Nam" (hoặc "Trung Nam"), TUYỆT ĐỐI KHÔNG dùng "Gia Đình Hưng Đạo".
 
 Nguyên tắc bắt buộc:
 1. 100% DỮ LIỆU THỰC TẾ TỪ DATABASE: Mọi thông tin (độ tuổi, năm sinh, sĩ số, chuyên cần, điểm số, nhân sự, giáo án, phê duyệt) BẮT BUỘC phải gọi Công cụ (AI Tools) để truy vấn từ cơ sở dữ liệu. Tuyệt đối không tự suy diễn hoặc dùng kiến thức lý thuyết chung ngoài đời.
@@ -2148,6 +2154,7 @@ Danh sách 36 Công cụ (AI Tools) chuyên sâu bạn sở hữu:
 
 Phong cách trả lời:
 - Trả lời bằng tiếng Việt tự nhiên, chuẩn mực, đúng trọng tâm câu hỏi.
+- Tuyệt đối tuân thủ quy tắc danh xưng (gọi "Trưởng", không gọi "Huynh trưởng", gọi "Gia Đình Hưng ĐạoGia Đình Hưng Đạo Trung Nam", không gọi "Gia Đình Hưng Đạo").
 - Định dạng Markdown trực quan: Bảng biểu (\`| Cột 1 | Cột 2 |\`), danh sách (\`-\`), in đậm (\`**số liệu**\`), biểu tượng cảm xúc (emoji).
 - Thời gian hiện tại: Quý ${currentQuarter}/${currentYear}.
 - Không bịa đặt số liệu. Luôn gọi tool phù hợp để lấy dữ liệu thực tế từ database.
@@ -2173,9 +2180,9 @@ async function generateFallbackResponse(message, userContext) {
       const bData = await dashboardService.getQuarterlyBirthdays({ role: "admin" }, { year: currentYear, quarter: currentQuarter, branch });
       const members = bData?.members || [];
       if (members.length === 0) {
-        return `Hiện chưa có thông tin đoàn sinh nào có sinh nhật trong Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`}).`;
+        return `Hiện chưa có thông tin đoàn sinh nào có sinh nhật trong Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`}).`;
       }
-      let md = `### 🎂 Danh sách Đoàn sinh có Sinh nhật trong Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`})\n\n`;
+      let md = `### 🎂 Danh sách Đoàn sinh có Sinh nhật trong Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})\n\n`;
       md += `Hệ thống ghi nhận **${members.length} đoàn sinh** đón tuổi mới trong quý này:\n\n`;
       md += `| Ngày sinh | Đoàn sinh | Ngành | Chi đoàn/Đội | Xã đạo/Xã đạo | Tuổi mới |\n`;
       md += `| :---: | :--- | :--- | :--- | :--- | :---: |\n`;
@@ -2216,11 +2223,11 @@ async function generateFallbackResponse(message, userContext) {
         .sort((a, b) => b.count - a.count);
 
       if (sorted.length === 0) {
-        return `Hiện chưa có thông tin dữ liệu về ${groupTitle.toLowerCase()} của đoàn sinh (${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`}).`;
+        return `Hiện chưa có thông tin dữ liệu về ${groupTitle.toLowerCase()} của đoàn sinh (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`}).`;
       }
 
       const top1 = sorted[0];
-      let md = `### 📍 Thống kê phân bố Đoàn sinh theo ${groupTitle} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`})\n\n`;
+      let md = `### 📍 Thống kê phân bố Đoàn sinh theo ${groupTitle} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})\n\n`;
       md += `Đoàn sinh tập trung nhiều nhất tại **${top1.name}** với **${top1.count} em** (${top1.pct}% trên tổng số ${total} đoàn sinh).\n\n`;
       md += `| ${groupTitle} | Số lượng | Tỷ lệ |\n`;
       md += `| :--- | :---: | :---: |\n`;
@@ -2275,17 +2282,17 @@ async function generateFallbackResponse(message, userContext) {
     if (q.includes("cảnh báo") || q.includes("nguy cơ") || q.includes("vắng nhiều") || q.includes("yếu") || q.includes("kém") || q.includes("nghỉ")) {
       const risks = await executiveDashboardService.getExecutiveRiskMembers(userContext, { year: currentYear, quarter: currentQuarter, branch });
       if (!risks || risks.length === 0) {
-        return `### 🛡️ Tình hình Đoàn sinh diện Cảnh báo (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`})\n\nHiện tại **không có đoàn sinh nào** thuộc diện cảnh báo nguy cơ nghiêm trọng trong phạm vi quản lý của bạn. Tỷ lệ chuyên cần và điểm số duy trì ở mức an toàn! 🎉`;
+        return `### 🛡️ Tình hình Đoàn sinh diện Cảnh báo (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})\n\nHiện tại **không có đoàn sinh nào** thuộc diện cảnh báo nguy cơ nghiêm trọng trong phạm vi quản lý của bạn. Tỷ lệ chuyên cần và điểm số duy trì ở mức an toàn! 🎉`;
       }
       const topRisks = risks.slice(0, 5);
-      let md = `### ⚠️ Danh sách Đoàn sinh cần chú ý (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`})\n\n`;
+      let md = `### ⚠️ Danh sách Đoàn sinh cần chú ý (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})\n\n`;
       md += `Hệ thống ghi nhận **${risks.length} đoàn sinh** có dấu hiệu vắng học hoặc điểm số giảm sút:\n\n`;
       md += `| Đoàn sinh | Ngành | Điểm TB | Vắng quy đổi | Lý do chính |\n`;
       md += `| :--- | :--- | :---: | :---: | :--- |\n`;
       topRisks.forEach((r) => {
         md += `| **${r.fullName}** | ${r.branch} | ${r.averageGrade ?? "—"} | ${r.attendanceEquivalent}b | ${r.reasons?.join("; ") || "Chuyên cần thấp"} |\n`;
       });
-      md += `\n💡 **Gợi ý hành động:** Huỳnh Trưởng nên chủ động liên hệ phụ huynh hoặc trao đổi riêng để động viên các em tham gia sinh hoạt đều đặn hơn.`;
+      md += `\n💡 **Gợi ý hành động:** Trưởng nên chủ động liên hệ phụ huynh hoặc trao đổi riêng để động viên các em tham gia sinh hoạt đều đặn hơn.`;
       return md;
     }
 
@@ -2293,9 +2300,9 @@ async function generateFallbackResponse(message, userContext) {
     if (q.includes("top") || q.includes("cao nhất") || q.includes("xuất sắc") || q.includes("dẫn đầu") || q.includes("thứ hạng") || q.includes("điểm cao")) {
       const topList = await executiveDashboardService.getExecutiveTopMembers(userContext, { year: currentYear, quarter: currentQuarter, branch, sortBy: "overall", limit: 5 });
       if (!topList || topList.length === 0) {
-        return `Chưa có dữ liệu xếp hạng thi đua cho Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`}).`;
+        return `Chưa có dữ liệu xếp hạng thi đua cho Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`}).`;
       }
-      let md = `### 🏆 Top 5 Đoàn sinh xuất sắc nhất (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`})\n\n`;
+      let md = `### 🏆 Top 5 Đoàn sinh xuất sắc nhất (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})\n\n`;
       md += `| Hạng | Đoàn sinh | Ngành | Tổng điểm | Chuyên cần | Xếp loại |\n`;
       md += `| :---: | :--- | :--- | :---: | :---: | :--- |\n`;
       topList.forEach((m, idx) => {
@@ -2310,7 +2317,7 @@ async function generateFallbackResponse(message, userContext) {
     if (q.includes("chuyên cần") || q.includes("điểm danh") || q.includes("vắng") || q.includes("xu hướng") || q.includes("buổi sinh hoạt")) {
       const trend = await executiveDashboardService.getExecutiveAttendanceTrend(userContext, { year: currentYear, quarter: currentQuarter, branch });
       if (trend?.history && trend.history.length > 0) {
-        let md = `### 📈 Xu hướng Chuyên cần các buổi sinh hoạt gần nhất (${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`})\n\n`;
+        let md = `### 📈 Xu hướng Chuyên cần các buổi sinh hoạt gần nhất (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})\n\n`;
         md += `Tỷ lệ chuyên cần trung bình đạt **${trend.averageRate || 0}%**:\n\n`;
         md += `| Buổi sinh hoạt | Tỷ lệ hiện diện | Số vắng |\n`;
         md += `| :--- | :---: | :---: |\n`;
@@ -2340,7 +2347,7 @@ async function generateFallbackResponse(message, userContext) {
       md += `| Họ tên | Vai trò | Ngành phụ trách | Email |\n`;
       md += `| :--- | :--- | :--- | :--- |\n`;
       users.forEach((u) => {
-        md += `| **${u.name}** | ${u.role === "admin" ? "BQT (Admin)" : "trưởng"} | ${u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo"} | \`${u.email}\` |\n`;
+        md += `| **${u.name}** | ${u.role === "admin" ? "BQT (Admin)" : "trưởng"} | ${u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo Trung Nam"} | \`${u.email}\` |\n`;
       });
       return md;
     }
@@ -2348,7 +2355,7 @@ async function generateFallbackResponse(message, userContext) {
     // 8. Tóm tắt / Tổng quan Quý
     if (q.includes("tổng quan") || q.includes("tóm tắt") || q.includes("tình hình") || q.includes("báo cáo") || q.includes("quý này") || q.includes("thống kê") || q.includes("bao nhiêu")) {
       const overview = await executiveDashboardService.getExecutiveOverview(userContext, { year: currentYear, quarter: currentQuarter, branch });
-      return `### 📊 Báo cáo Tổng quan Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo" : `Ngành ${branch}`})
+      return `### 📊 Báo cáo Tổng quan Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})
 
 - **Tổng số Đoàn sinh:** **${overview?.totalMembers?.value || 0}** em (${overview?.totalMembers?.diff >= 0 ? "+" : ""}${overview?.totalMembers?.diff || 0} so với quý trước)
 - **Tỷ lệ Chuyên cần trung bình:** **${overview?.attendanceRate?.value || 0}%** (${overview?.attendanceRate?.diff >= 0 ? "+" : ""}${overview?.attendanceRate?.diff || 0}%)
@@ -2587,8 +2594,16 @@ async function processChatMessage({ message, history = [], userContext }) {
           : await generateFallbackResponse(trimmedMessage, userContext);
       }
 
+function sanitizeAiResponse(text) {
+  if (!text || typeof text !== "string") return text;
+  return text
+    .replace(/Huynh [Tt]rưởng/g, "Trưởng")
+    .replace(/Huỳnh [Tt]rưởng/g, "Trưởng")
+    .replace(/huynh trưởng/gi, "Trưởng");
+}
+
       return {
-        reply,
+        reply: sanitizeAiResponse(reply),
         toolCalled: executedToolNames.join(", "),
         modelUsed,
       };
@@ -2599,7 +2614,7 @@ async function processChatMessage({ message, history = [], userContext }) {
     let reply = textParts.join("\n\n").trim();
 
     return {
-      reply: reply || (await generateFallbackResponse(trimmedMessage, userContext)),
+      reply: sanitizeAiResponse(reply || (await generateFallbackResponse(trimmedMessage, userContext))),
       modelUsed,
     };
   } catch (err) {
@@ -2607,7 +2622,7 @@ async function processChatMessage({ message, history = [], userContext }) {
     // Fallback mượt mà nếu Gemini gặp lỗi quota hoặc model name
     const fallbackText = await generateFallbackResponse(trimmedMessage, userContext);
     return {
-      reply: fallbackText,
+      reply: sanitizeAiResponse(fallbackText),
       modelUsed: "local-analyst-fallback (api error)",
     };
   }
@@ -2633,7 +2648,7 @@ function getQuickSuggestions(userContext) {
   }
 
   return [
-    "Tóm tắt tình hình Gia Đình Hưng Đạo Quý này",
+    "Tóm tắt tình hình Gia Đình Hưng Đạo Trung Nam Quý này",
     "Tiến độ kế hoạch chương trình sinh hoạt các Ngành",
     "Đoàn sinh ở xã đạo nào nhiều nhất?",
     "So sánh tỷ lệ chuyên cần giữa các Ngành",
