@@ -623,23 +623,55 @@ async function getQuarterlyBirthdays(user, queryQuarter, queryYear) {
   // Quarter months (1-indexed)
   const quarterMonths = [(quarter - 1) * 3 + 1, (quarter - 1) * 3 + 2, (quarter - 1) * 3 + 3];
 
-  const members = await prisma.member.findMany({
-    where: {
-      active: true,
-      birthDate: { not: null },
-      ...branchFilter,
-    },
-    select: {
-      id: true,
-      name: true,
-      birthDate: true,
-      gender: true,
-      parish: true,
-      church: true,
-      branch: true,
-      group: true,
-    },
-  });
+  const userWhere = {
+    active: true,
+    birthDate: { not: null },
+  };
+  if (branch && branch !== "all") {
+    userWhere.OR = [
+      { branch },
+      { branch: null },
+      { role: "admin" },
+    ];
+  } else if (branchFilter?.branch) {
+    userWhere.OR = [
+      { branch: branchFilter.branch },
+      { branch: null },
+      { role: "admin" },
+    ];
+  }
+
+  const [members, users] = await Promise.all([
+    prisma.member.findMany({
+      where: {
+        active: true,
+        birthDate: { not: null },
+        ...branchFilter,
+      },
+      select: {
+        id: true,
+        name: true,
+        birthDate: true,
+        gender: true,
+        parish: true,
+        church: true,
+        branch: true,
+        group: true,
+      },
+    }),
+    prisma.user.findMany({
+      where: userWhere,
+      select: {
+        id: true,
+        name: true,
+        birthDate: true,
+        branch: true,
+        role: true,
+        email: true,
+        phone: true,
+      },
+    }),
+  ]);
 
   const matchingMembers = [];
 
@@ -673,6 +705,49 @@ async function getQuarterlyBirthdays(user, queryQuarter, queryYear) {
         branch: m.branch || "",
         group: m.group || "",
         gender: m.gender || "",
+        isLeader: false,
+        role: "Đoàn sinh",
+        isToday,
+        isThisMonth,
+      });
+    }
+  }
+
+  for (const u of users) {
+    if (!u.birthDate) continue;
+    const bDate = new Date(u.birthDate);
+    const bMonth = bDate.getMonth() + 1; // 1-12
+    const bDay = bDate.getDate();
+    const bYear = bDate.getFullYear();
+
+    if (quarterMonths.includes(bMonth)) {
+      const age = bYear ? year - bYear : null;
+      const isToday = (bMonth === currentMonth && bDay === now.getDate());
+      const isThisMonth = (bMonth === currentMonth);
+
+      const formattedDay = String(bDay).padStart(2, "0");
+      const formattedMonth = String(bMonth).padStart(2, "0");
+      const formattedDate = `${formattedDay}/${formattedMonth}`;
+
+      matchingMembers.push({
+        id: -u.id,
+        userId: u.id,
+        fullName: u.name,
+        birthDate: u.birthDate,
+        birthDay: bDay,
+        birthMonth: bMonth,
+        birthYear: bYear,
+        formattedDate,
+        age,
+        parish: u.role || "Trưởng",
+        church: u.branch ? `Ngành ${u.branch}` : "Ban Quản Trị",
+        branch: u.branch || "BQT",
+        group: u.role || "Trưởng",
+        gender: "",
+        phone: u.phone || "",
+        email: u.email || "",
+        isLeader: true,
+        role: u.role || "Trưởng",
         isToday,
         isThisMonth,
       });

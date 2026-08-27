@@ -2180,14 +2180,15 @@ async function generateFallbackResponse(message, userContext) {
       const bData = await dashboardService.getQuarterlyBirthdays({ role: "admin" }, { year: currentYear, quarter: currentQuarter, branch });
       const members = bData?.members || [];
       if (members.length === 0) {
-        return `Hiện chưa có thông tin đoàn sinh nào có sinh nhật trong Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`}).`;
+        return `Hiện chưa có thông tin ai có sinh nhật trong Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`}).`;
       }
-      let md = `### 🎂 Danh sách Đoàn sinh có Sinh nhật trong Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})\n\n`;
-      md += `Hệ thống ghi nhận **${members.length} đoàn sinh** đón tuổi mới trong quý này:\n\n`;
-      md += `| Ngày sinh | Đoàn sinh | Ngành | Chi đoàn/Đội | Xã đạo/Xã đạo | Tuổi mới |\n`;
-      md += `| :---: | :--- | :--- | :--- | :--- | :---: |\n`;
+      let md = `### 🎂 Danh sách Sinh nhật trong Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})\n\n`;
+      md += `Hệ thống ghi nhận **${members.length} thành viên** (gồm Đoàn sinh và Trưởng) đón tuổi mới trong quý này:\n\n`;
+      md += `| Ngày sinh | Họ và tên | Vai trò | Ngành | Chi đoàn/Đội | Xã đạo/Xã đạo | Tuổi mới |\n`;
+      md += `| :---: | :--- | :--- | :--- | :--- | :--- | :---: |\n`;
       members.forEach((m) => {
-        md += `| **${m.formattedDate}** | **${m.fullName}** | ${m.branch ? `Ngành ${m.branch}` : "—"} | ${m.group || "—"} | ${m.parish || "—"} | ${m.age ? `${m.age} tuổi` : "—"} |\n`;
+        const roleLabel = m.isLeader ? `⭐ **${m.role || "Trưởng"}**` : "Đoàn sinh";
+        md += `| **${m.formattedDate}** | **${m.fullName}** | ${roleLabel} | ${m.branch ? `Ngành ${m.branch}` : "—"} | ${m.group || "—"} | ${m.parish || "—"} | ${m.age ? `${m.age} tuổi` : "—"} |\n`;
       });
       return md;
     }
@@ -2450,13 +2451,16 @@ function formatToolResultToMarkdown(toolName, result) {
       return md;
     }
     case "get_quarterly_birthdays": {
-      const bdays = d.birthdays || [];
-      if (bdays.length === 0) return `Hiện chưa ghi nhận đoàn sinh nào có sinh nhật trong thời gian này (${d.branch}).`;
-      let md = `### 🎂 Danh sách Đoàn sinh Sinh nhật (${d.branch})\n\n`;
-      md += `| Ngày sinh | Đoàn sinh | Ngành | Chi đoàn/Đội | Xã đạo/Xã đạo | Tuổi mới |\n`;
-      md += `| :---: | :--- | :--- | :--- | :--- | :---: |\n`;
+      const bdays = d.birthdays || d.members || [];
+      if (bdays.length === 0) return `Hiện chưa ghi nhận sinh nhật nào trong thời gian này (${d.branch}).`;
+      let md = `### 🎂 Danh sách Sinh nhật (${d.branch})\n\n`;
+      md += `| Ngày sinh | Họ và tên | Vai trò | Ngành | Chi đoàn/Đội | Xã đạo/Xã đạo | Tuổi mới |\n`;
+      md += `| :---: | :--- | :--- | :--- | :--- | :--- | :---: |\n`;
       bdays.forEach((b) => {
-        md += `| **${b.birthDate}** | **${b.name}** | ${b.branch} | ${b.group} | ${b.parish} | ${b.age ? `${b.age} tuổi` : "—"} |\n`;
+        const name = b.fullName || b.name;
+        const formattedDate = b.formattedDate || b.birthDate;
+        const roleLabel = b.isLeader ? `⭐ **${b.role || "Trưởng"}**` : "Đoàn sinh";
+        md += `| **${formattedDate}** | **${name}** | ${roleLabel} | ${b.branch ? `Ngành ${b.branch}` : "—"} | ${b.group || "—"} | ${b.parish || "—"} | ${b.age ? `${b.age} tuổi` : "—"} |\n`;
       });
       return md;
     }
