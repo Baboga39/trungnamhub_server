@@ -631,6 +631,30 @@ async function executeTool(toolName, args, userContext) {
           };
         }
 
+        const startQuarterMonth = (quarter - 1) * 3;
+        const startQuarterDate = new Date(year, startQuarterMonth, 1);
+        const endQuarterDate = new Date(year, startQuarterMonth + 3, 0, 23, 59, 59, 999);
+
+        const branchList = [...new Set(members.map((m) => m.branch).filter(Boolean))];
+        const branchSessionsMap = {};
+        for (const b of branchList) {
+          let count = await prisma.session.count({
+            where: {
+              branch: b,
+              date: { gte: startQuarterDate, lte: endQuarterDate },
+            },
+          });
+          if (count === 0) {
+            count = await prisma.session.count({
+              where: {
+                branch: b,
+                date: { gte: new Date(year, 0, 1), lte: new Date(year, 11, 31, 23, 59, 59, 999) },
+              },
+            });
+          }
+          branchSessionsMap[b] = count;
+        }
+
         const formatted = members.map((m) => {
           const totalGrades = m.grades || [];
           let weightedSum = 0;
@@ -642,9 +666,23 @@ async function executeTool(toolName, args, userContext) {
           });
           const avgScore = weightTotal > 0 ? (weightedSum / weightTotal).toFixed(1) : "Chưa có";
 
-          const presentCount = m.attendances.filter((a) => a.status === "PRESENT").length;
-          const totalAtt = m.attendances.length;
-          const attRate = totalAtt > 0 ? Math.round((presentCount / totalAtt) * 100) + "%" : "Chưa có";
+          // Calculate attendance rate based on Absence by Exception
+          let absentEquivalent = 0;
+          (m.attendances || []).forEach((a) => {
+            const st = (a.status || "").toLowerCase();
+            if (st === "absent") absentEquivalent += 1;
+            else if (st === "late") absentEquivalent += 0.5;
+            else if (st === "excused" || st === "absent_with_permission") absentEquivalent += 0.2;
+          });
+
+          const branchSessions = branchSessionsMap[m.branch] || 0;
+          let attRate = "100%";
+          if (branchSessions > 0) {
+            const rateVal = Math.max(0, Math.min(100, Math.round(((branchSessions - absentEquivalent) / branchSessions) * 100)));
+            attRate = `${rateVal}%`;
+          } else if (m.attendances.length > 0) {
+            attRate = "Chưa có buổi sinh hoạt ghi nhận";
+          }
 
           return {
             id: m.id,
@@ -667,10 +705,17 @@ async function executeTool(toolName, args, userContext) {
               weight: g.category?.weight,
             })),
             recentAttendanceRate: attRate,
-            recentAttendances: m.attendances.map((a) => ({
-              date: new Date(a.date).toLocaleDateString("vi-VN"),
-              status: a.status,
-            })),
+            recentAttendances: m.attendances.map((a) => {
+              const st = (a.status || "").toLowerCase();
+              let statusVi = "Có mặt";
+              if (st === "absent") statusVi = "Vắng mặt";
+              else if (st === "late") statusVi = "Đi trễ";
+              else if (st === "excused" || st === "absent_with_permission") statusVi = "Có phép";
+              return {
+                date: new Date(a.date).toLocaleDateString("vi-VN"),
+                status: statusVi,
+              };
+            }),
             statusHistory: m.statusHistory.map((s) => ({
               type: s.type,
               note: s.note,
