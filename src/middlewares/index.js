@@ -1,13 +1,18 @@
 const responseMiddleware = require("./response");
 const errorHandler = require("./errorHandler");
-const validation= require("./validate");
+const validation = require("./validate");
 const auth = require("./authMiddleware");
-const upload = require("./upload")
+const upload = require("./upload");
+const { globalLimiter, authLimiter } = require("./rateLimiter");
+const { corsOptions } = require("./corsConfig");
 
 module.exports = {
   responseMiddleware,
   errorHandler,
   validation,
   auth,
-  upload
+  upload,
+  globalLimiter,
+  authLimiter,
+  corsOptions,
 };
