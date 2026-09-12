@@ -1,97 +1,58 @@
 const services = require("../services");
+const { asyncHandler } = require("../middlewares");
 
-async function upsert(req, res, next) {
-  try {
-    const member = await services.memberService.upsertMember(req.body, req.user);
-    return res.ok(member, "Member upsert success");
-  } catch (err) {
-    next(err);
-  }
-}
+const upsert = asyncHandler(async (req, res) => {
+  const member = await services.memberService.upsertMember(req.body, req.user);
+  return res.ok(member, "Member upsert success");
+});
 
-async function getAll(req, res, next) {
-  try {
-    const members = await services.memberService.getMembers(req.user);
-    return res.ok(members, "Get members success");
-  } catch (err) {
-    next(err);
-  }
-}
+const getAll = asyncHandler(async (req, res) => {
+  const members = await services.memberService.getMembers(req.user);
+  return res.ok(members, "Get members success");
+});
 
-async function getById(req, res, next) {
-  try {
-    const member = await services.memberService.getMemberById(+req.params.id);
-    if (!member) return res.notFound(null, "Member not found");
-    return res.ok(member, "Get member success");
-  } catch (err) {
-    next(err);
-  }
-}
+const getById = asyncHandler(async (req, res) => {
+  const member = await services.memberService.getMemberById(+req.params.id);
+  if (!member) return res.notFound(null, "Member not found");
+  return res.ok(member, "Get member success");
+});
 
-async function getMembersActive(req, res, next) {
-  try {
-    const members = await services.memberService.getMembersActive(req.user);
-    return res.ok(members, "Get members success");
-  } catch (err) {
-    next(err);
-  }
-}
+const getMembersActive = asyncHandler(async (req, res) => {
+  const members = await services.memberService.getMembersActive(req.user);
+  return res.ok(members, "Get members success");
+});
 
-async function remove(req, res, next) {
-  try {
-    const member = await services.memberService.softDeleteMember(+req.params.id);
-    return res.ok(member, "Member deleted (soft)");
-  } catch (err) {
-    next(err);
-  }
-}
+const remove = asyncHandler(async (req, res) => {
+  const member = await services.memberService.softDeleteMember(+req.params.id);
+  return res.ok(member, "Member deleted (soft)");
+});
 
-async function changeStatus(req, res, next) {
-  try {
-    const { memberId, active, promotionDate, note } = req.body;
-    const member = await services.memberService.changeMemberStatus(memberId, active, promotionDate, note);
-    return res.ok(member, "Member status changed successfully");
-  } catch (err) {
-    next(err);
-  }
-}
+const changeStatus = asyncHandler(async (req, res) => {
+  const { memberId, active, promotionDate, note } = req.body;
+  const member = await services.memberService.changeMemberStatus(memberId, active, promotionDate, note);
+  return res.ok(member, "Member status changed successfully");
+});
 
-async function getMemberStatusHistory(req, res, next) {
-  try {
-    const memberStatusHistory = await services.memberService.getMemberStatusHistory(req.params.memberId);
-    return res.ok(memberStatusHistory, "Member status history fetched successfully");
-  } catch (err) {
-    next(err);
-  }
-}
+const getMemberStatusHistory = asyncHandler(async (req, res) => {
+  const memberStatusHistory = await services.memberService.getMemberStatusHistory(req.params.memberId);
+  return res.ok(memberStatusHistory, "Member status history fetched successfully");
+});
 
-async function deleteHistoryById(req, res, next) {
-  try {
-    await services.memberService.deleteHistory(req.body.ids);
-    return res.ok(null, "History deleted successfully");
-  } catch (err) {
-    next(err);
-  }
-}
+const deleteHistoryById = asyncHandler(async (req, res) => {
+  await services.memberService.deleteHistory(req.body.ids);
+  return res.ok(null, "History deleted successfully");
+});
 
-async function promoteBranch(req, res, next) {
-  try {
-    const { memberId, note, effectiveDate } = req.body;
-    const member = await services.memberService.promoteBranch(memberId, note, effectiveDate);
-    return res.ok(member, "Branch promoted successfully");
-  } catch (err) {
-    next(err);
-  }
-}
+const promoteBranch = asyncHandler(async (req, res) => {
+  const { memberId, note, effectiveDate } = req.body;
+  const member = await services.memberService.promoteBranch(memberId, note, effectiveDate);
+  return res.ok(member, "Branch promoted successfully");
+});
 
-async function getBranchList(req, res, next) {
-  try {
-    const list = services.memberService.getBranchList();
-    return res.ok(list, "Branch list fetched successfully");
-  } catch (err) {
-    next(err);
-  }
-}
+const getBranchList = asyncHandler(async (req, res) => {
+  const list = services.memberService.getBranchList();
+  return res.ok(list, "Branch list fetched successfully");
+});
 
 module.exports = {
   upsert,

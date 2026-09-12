@@ -1,33 +1,22 @@
 const services = require("../services");
+const { asyncHandler } = require("../middlewares");
 
-async function upsertActivity(req, res, next) {
-  try {
-    const data = req.body;
-    const user = req.user;
-    const activity = await services.activityService.upSertActivity(data, user);
-    res.ok(activity, "Activity upserted successfully");
-  } catch (err) {
-    next(err);
-  }
-}
+const upsertActivity = asyncHandler(async (req, res) => {
+  const data = req.body;
+  const user = req.user;
+  const activity = await services.activityService.upSertActivity(data, user);
+  res.ok(activity, "Activity upserted successfully");
+});
 
-async function getActivities(req, res, next) {
-  try {
-    const activities = await services.activityService.getActivities();
-    res.ok(activities, "Activities fetched successfully");
-  } catch (err) {
-    next(err);
-  }
-}
+const getActivities = asyncHandler(async (req, res) => {
+  const activities = await services.activityService.getActivities();
+  res.ok(activities, "Activities fetched successfully");
+});
 
-async function deleteActivity(req, res, next) {
-  try {
-    const { id } = req.params;
-    const deletedActivity = await services.activityService.deleteActivity(id);
-    res.ok(deletedActivity, "Activity deleted successfully");
-  } catch (err) {
-    next(err);
-  }
-}
+const deleteActivity = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const deletedActivity = await services.activityService.deleteActivity(id);
+  res.ok(deletedActivity, "Activity deleted successfully");
+});
 
-module.exports = { upsertActivity , getActivities , deleteActivity };
+module.exports = { upsertActivity, getActivities, deleteActivity };

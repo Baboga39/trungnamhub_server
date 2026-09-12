@@ -9,11 +9,8 @@ const JWT_SECRET = process.env.JWT_SECRET || "TrungnamHub";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_MODELS_TO_TRY = [
   process.env.GEMINI_MODEL,
-  "gemini-3.1-flash-lite",
-  "gemini-3.5-flash-lite",
-  "gemini-flash-lite-latest",
-  "gemini-3-flash-preview",
   "gemini-3.6-flash",
+  "gemini-flash-lite-latest",
 ].filter(Boolean);
 
 const PROGRAM_SERVER_URL = process.env.PROGRAM_SERVER_URL || "http://localhost:5001";
@@ -59,6 +56,29 @@ const toolDeclarations = [
           type: "STRING",
           description: "Ngành lọc (Đồng, Thiếu, Thanh, hoặc 'all' cho toàn Gia Đình Hưng Đạo Trung Nam)",
         },
+      },
+    },
+  },
+  {
+    name: "get_members_list",
+    description: "Tra cứu, lọc và lấy danh sách chi tiết đoàn sinh theo nhiều tiêu chí linh hoạt: năm sinh (birthYear, ví dụ: 2012), năm tham gia/gia nhập (startYear), khoảng độ tuổi (minAge, maxAge, age), tháng sinh (birthMonth), ngành (branch: 'Đồng', 'Thiếu', 'Thanh', 'all'), giới tính (gender: 'Nam', 'Nữ'), xã đạo/giáo họ (parish), họ đạo/giáo xứ (church), phân đoàn/đội (group: 'Tùng', 'Trúc', 'Thông'...), trạng thái sinh hoạt (active: true/false), hoặc từ khóa họ tên. Trả về danh sách chi tiết gồm: STT, Mã ĐS, Họ và tên, Ngày sinh, Tuổi, Giới tính, Ngành, Phân đoàn/Đội, Xã đạo, Họ Đạo, Cha mẹ, SĐT liên hệ, Trạng thái.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        birthYear: { type: "INTEGER", description: "Năm sinh của đoàn sinh (ví dụ: 2012, 2011, 2013)" },
+        startYear: { type: "INTEGER", description: "Năm bắt đầu tham gia/gia nhập (ví dụ: 2023, 2012)" },
+        birthMonth: { type: "INTEGER", description: "Tháng sinh (1-12)" },
+        age: { type: "INTEGER", description: "Độ tuổi chính xác cần tìm (ví dụ: 14 tuổi)" },
+        minAge: { type: "INTEGER", description: "Độ tuổi tối thiểu" },
+        maxAge: { type: "INTEGER", description: "Độ tuổi tối đa" },
+        branch: { type: "STRING", description: "Tên Ngành ('Đồng', 'Thiếu', 'Thanh', hoặc 'all')" },
+        gender: { type: "STRING", description: "Giới tính ('Nam' hoặc 'Nữ')" },
+        parish: { type: "STRING", description: "Tên Xã đạo / Giáo họ (ví dụ: Phước Mỹ, Phước Nguyên, Phước Minh, Trung Nam...)" },
+        church: { type: "STRING", description: "Tên Họ Đạo / Giáo xứ" },
+        group: { type: "STRING", description: "Tên Chi đoàn / Đội / Phân đoàn (ví dụ: Tùng, Trúc, Thông...)" },
+        active: { type: "BOOLEAN", description: "Còn đang sinh hoạt hay không (mặc định true)" },
+        query: { type: "STRING", description: "Từ khóa tên nếu cần lọc phụ" },
+        limit: { type: "INTEGER", description: "Số lượng tối đa cần lấy (mặc định 50)" },
       },
     },
   },
@@ -429,6 +449,140 @@ const toolDeclarations = [
       required: ["query"],
     },
   },
+  {
+    name: "get_organization_structure",
+    description: "Cơ cấu tổ chức Gia Đình Hưng Đạo Trung Nam: 3 ngành (Đồng, Thiếu, Thanh), tôn chỉ, khẩu hiệu, ban trưởng, lứa tuổi, màu khăn và sĩ số active thực tế.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        branch: { type: "STRING", description: "Ngành lọc ('Đồng', 'Thiếu', 'Thanh', hoặc 'all')" },
+      },
+    },
+  },
+  {
+    name: "get_attendance_analytics",
+    description: "Phân tích số liệu chuyên cần chi tiết: tỷ lệ hiện diện, số buổi vắng (phép, không phép, trễ), công thức quy đổi chuẩn, điểm chuyên cần trung bình và phổ chuyên cần.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        year: { type: "INTEGER", description: "Năm cần phân tích" },
+        quarter: { type: "INTEGER", description: "Quý cần phân tích (1-4)" },
+        branch: { type: "STRING", description: "Ngành lọc ('Đồng', 'Thiếu', 'Thanh', hoặc 'all')" },
+      },
+    },
+  },
+  {
+    name: "get_church_parish_breakdown",
+    description: "Thống kê phân bố đoàn sinh theo từng Giáo họ/Xã đạo (parish) và Giáo xứ/Họ Đạo (church) cụ thể kèm tỷ lệ phần trăm và cơ cấu ngành.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        branch: { type: "STRING", description: "Ngành lọc ('Đồng', 'Thiếu', 'Thanh', hoặc 'all')" },
+      },
+    },
+  },
+  {
+    name: "get_faqs_and_guidelines",
+    description: "Hỏi đáp quy chế & hướng dẫn cơ bản cho người mới/phụ huynh: Giờ giấc sinh hoạt Chúa Nhật, quy định đồng phục, 4 tôn chỉ TNTT, quy trình xin phép vắng, học phí miễn phí, cách thức đăng ký.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        category: { type: "STRING", description: "Chủ đề: 'schedule' (giờ giấc), 'uniform' (đồng phục), 'motto' (tôn chỉ), 'attendance' (vắng/trễ), 'tuition' (học phí), 'registration' (đăng ký), hoặc 'all'" },
+      },
+    },
+  },
+  {
+    name: "get_branch_curriculum_overview",
+    description: "Lộ trình giáo lý, ý nghĩa màu khăn, châm ngôn và mục tiêu sư phạm của 3 ngành (Đồng, Thiếu, Thanh).",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        branch: { type: "STRING", description: "Ngành lọc ('Đồng', 'Thiếu', 'Thanh', hoặc 'all')" },
+      },
+    },
+  },
+  {
+    name: "get_liturgical_calendar_and_feasts",
+    description: "Lịch phụng vụ, Lễ Bổn mạng Gia Đình Hưng Đạo Trung Nam, Quan thầy các ngành (Đồng, Thiếu, Thanh), Ban Trưởng và các ngày lễ trọng trong năm.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        branch: { type: "STRING", description: "Ngành lọc ('Đồng', 'Thiếu', 'Thanh', hoặc 'all')" },
+      },
+    },
+  },
+  {
+    name: "get_top_performers",
+    description: "Bảng vàng thi đua: Top đoàn sinh xuất sắc dẫn đầu về điểm số tổng kết, chuyên cần hoặc hoạt động phong trào.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        year: { type: "INTEGER", description: "Năm cần tra cứu" },
+        quarter: { type: "INTEGER", description: "Quý cần tra cứu" },
+        branch: { type: "STRING", description: "Ngành ('Đồng', 'Thiếu', 'Thanh', hoặc 'all')" },
+        sortBy: { type: "STRING", description: "Tiêu chí xếp hạng: 'overall', 'score', 'attendance', 'activity'" },
+        limit: { type: "INTEGER", description: "Số lượng top (mặc định 10)" },
+      },
+    },
+  },
+  {
+    name: "get_at_risk_members",
+    description: "Danh sách đoàn sinh thuộc diện cảnh báo nguy cơ (vắng học nhiều, trễ giờ thường xuyên, hoặc điểm tụt sâu).",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        year: { type: "INTEGER", description: "Năm cần tra cứu" },
+        quarter: { type: "INTEGER", description: "Quý cần tra cứu" },
+        branch: { type: "STRING", description: "Ngành ('Đồng', 'Thiếu', 'Thanh', hoặc 'all')" },
+      },
+    },
+  },
+  {
+    name: "get_camp_participants_and_activities",
+    description: "Thống kê chi tiết các hoạt động cắm trại, dã ngoại, hội trại truyền thống, trò chơi lớn và tỷ lệ tham gia theo ngành.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        year: { type: "INTEGER", description: "Năm tổ chức sự kiện" },
+        quarter: { type: "INTEGER", description: "Quý tổ chức (1-4)" },
+        branch: { type: "STRING", description: "Ngành ('Đồng', 'Thiếu', 'Thanh', hoặc 'all')" },
+        activityName: { type: "STRING", description: "Tên hoạt động (ví dụ: 'Trại', 'Dã ngoại', 'Lửa trại')" },
+      },
+    },
+  },
+  {
+    name: "get_upcoming_birthdays_next_30_days",
+    description: "Tra cứu danh sách đoàn sinh và Trưởng có sinh nhật sắp tới trong vòng 30 ngày để kịp thời chuẩn bị quà chúc mừng.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        branch: { type: "STRING", description: "Ngành lọc ('Đồng', 'Thiếu', 'Thanh', hoặc 'all')" },
+        limit: { type: "INTEGER", description: "Số lượng hiển thị (mặc định 25)" },
+      },
+    },
+  },
+  {
+    name: "get_attendance_comparison_by_quarter",
+    description: "So sánh tỷ lệ chuyên cần qua 4 Quý trong năm để đánh giá xu hướng tăng giảm và ổn định sĩ số của từng ngành.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        year: { type: "INTEGER", description: "Năm cần so sánh" },
+        branch: { type: "STRING", description: "Ngành ('Đồng', 'Thiếu', 'Thanh', hoặc 'all')" },
+      },
+    },
+  },
+  {
+    name: "get_member_health_and_notes",
+    description: "Tra cứu các ghi chú sư phạm, lưu ý sức khỏe, hoàn cảnh gia đình hoặc lưu ý điểm danh của đoàn sinh.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        query: { type: "STRING", description: "Tên đoàn sinh hoặc từ khóa cần tìm" },
+        branch: { type: "STRING", description: "Ngành lọc ('Đồng', 'Thiếu', 'Thanh', hoặc 'all')" },
+      },
+    },
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -509,6 +663,142 @@ async function executeTool(toolName, args, userContext) {
             groupBy,
             branch,
             ranking,
+          },
+        };
+      }
+
+      // 0. Tra cứu danh sách chi tiết đoàn sinh theo bộ lọc (năm sinh, tuổi, ngành, đội, xã đạo...)
+      case "get_members_list": {
+        const targetBranch = args.branch || branch || "all";
+        const where = {};
+
+        if (args.active !== undefined) {
+          where.active = Boolean(args.active);
+        } else {
+          where.active = true;
+        }
+
+        if (targetBranch && targetBranch !== "all") {
+          where.branch = targetBranch;
+        }
+
+        if (args.gender) {
+          where.gender = { equals: args.gender, mode: "insensitive" };
+        }
+
+        if (args.parish) {
+          where.parish = { contains: args.parish.trim(), mode: "insensitive" };
+        }
+
+        if (args.church) {
+          where.church = { contains: args.church.trim(), mode: "insensitive" };
+        }
+
+        if (args.group) {
+          where.group = { contains: args.group.trim(), mode: "insensitive" };
+        }
+
+        if (args.startYear) {
+          where.startYear = Number(args.startYear);
+        }
+
+        if (args.query && typeof args.query === "string" && args.query.trim()) {
+          where.name = { contains: args.query.trim(), mode: "insensitive" };
+        }
+
+        let members = await prisma.member.findMany({
+          where,
+          orderBy: [
+            { branch: "asc" },
+            { name: "asc" },
+          ],
+        });
+
+        // Lọc theo năm sinh (birthYear)
+        if (args.birthYear) {
+          const by = Number(args.birthYear);
+          members = members.filter((m) => m.birthDate && new Date(m.birthDate).getFullYear() === by);
+        }
+
+        // Lọc theo tháng sinh (birthMonth)
+        if (args.birthMonth) {
+          const bm = Number(args.birthMonth);
+          members = members.filter((m) => m.birthDate && (new Date(m.birthDate).getMonth() + 1) === bm);
+        }
+
+        // Lọc theo độ tuổi (age)
+        if (args.age) {
+          const targetAge = Number(args.age);
+          members = members.filter((m) => {
+            if (!m.birthDate) return false;
+            const bYear = new Date(m.birthDate).getFullYear();
+            return (currentYear - bYear) === targetAge;
+          });
+        }
+
+        // Lọc theo khoảng độ tuổi (minAge, maxAge)
+        if (args.minAge || args.maxAge) {
+          const minA = args.minAge ? Number(args.minAge) : 0;
+          const maxA = args.maxAge ? Number(args.maxAge) : 999;
+          members = members.filter((m) => {
+            if (!m.birthDate) return false;
+            const bYear = new Date(m.birthDate).getFullYear();
+            const age = currentYear - bYear;
+            return age >= minA && age <= maxA;
+          });
+        }
+
+        const limit = args.limit ? Number(args.limit) : 50;
+        const totalFound = members.length;
+        const paginated = members.slice(0, limit);
+
+        const formattedList = paginated.map((m, idx) => {
+          const bDate = m.birthDate ? new Date(m.birthDate) : null;
+          const bYear = bDate ? bDate.getFullYear() : null;
+          const age = bYear ? currentYear - bYear : null;
+          const formattedBDate = bDate ? `${String(bDate.getDate()).padStart(2, "0")}/${String(bDate.getMonth() + 1).padStart(2, "0")}/${bYear}` : "Chưa cập nhật";
+
+          return {
+            stt: idx + 1,
+            id: m.id,
+            name: m.name,
+            birthDate: formattedBDate,
+            birthYear: bYear,
+            age: age ? `${age} tuổi` : "—",
+            gender: m.gender || "—",
+            branch: m.branch || "—",
+            group: m.group || "Chưa xếp đội",
+            parish: m.parish || "Chưa cập nhật",
+            church: m.church || "Chưa cập nhật",
+            contact: m.contact && m.contact !== "—" ? m.contact : "Chưa có SĐT",
+            fatherName: m.fatherName && m.fatherName !== "—" ? m.fatherName : "—",
+            motherName: m.motherName && m.motherName !== "—" ? m.motherName : "—",
+            address: m.address || "—",
+            startYear: m.startYear || "—",
+            active: m.active ? "Đang sinh hoạt" : "Đã nghỉ",
+          };
+        });
+
+        return {
+          success: true,
+          data: {
+            totalFound,
+            displayed: formattedList.length,
+            filters: {
+              birthYear: args.birthYear || null,
+              startYear: args.startYear || null,
+              birthMonth: args.birthMonth || null,
+              age: args.age || null,
+              branch: targetBranch,
+              gender: args.gender || null,
+              parish: args.parish || null,
+              church: args.church || null,
+              group: args.group || null,
+            },
+            members: formattedList,
+            note: totalFound === 0 
+              ? "Không tìm thấy đoàn sinh nào phù hợp với bộ lọc yêu cầu."
+              : `Tìm thấy ${totalFound} đoàn sinh phù hợp.`,
           },
         };
       }
@@ -603,7 +893,7 @@ async function executeTool(toolName, args, userContext) {
               id: u.id,
               name: u.name,
               role: u.role || "trưởng",
-              branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo Trung Nam",
+              branch: u.branch ? "Ngành " + u.branch : "Toàn Gia Đình Hưng Đạo Trung Nam",
               email: u.email,
               eventsOrganized: u.sumEvent || 0,
               startYear: u.startYear ? new Date(u.startYear).getFullYear() : "—",
@@ -730,6 +1020,7 @@ async function executeTool(toolName, args, userContext) {
       }
 
       // 5. Top đoàn sinh xuất sắc
+      case "get_top_performers":
       case "get_top_members": {
         const limit = args.limit ? Number(args.limit) : 10;
         const sortBy = args.sortBy || "overall";
@@ -738,6 +1029,7 @@ async function executeTool(toolName, args, userContext) {
       }
 
       // 6. Đoàn sinh diện cảnh báo nguy cơ
+      case "get_at_risk_members":
       case "get_risk_members": {
         const data = await executiveDashboardService.getExecutiveRiskMembers(userContext, { year, quarter, branch });
         return { success: true, data };
@@ -801,7 +1093,7 @@ async function executeTool(toolName, args, userContext) {
           return {
             sessionId: s.id,
             date: new Date(s.date).toLocaleDateString("vi-VN"),
-            branch: s.branch ? `Ngành ${s.branch}` : "Toàn Gia Đình Hưng Đạo Trung Nam",
+            branch: s.branch ? "Ngành " + s.branch : "Toàn Gia Đình Hưng Đạo Trung Nam",
             totalExpected,
             presentCount: present,
             absentCount: absent,
@@ -987,7 +1279,7 @@ async function executeTool(toolName, args, userContext) {
           return {
             sessionId: s.id,
             date: new Date(s.date).toLocaleDateString("vi-VN"),
-            branch: s.branch ? `Ngành ${s.branch}` : "Toàn Gia Đình Hưng Đạo Trung Nam",
+            branch: s.branch ? "Ngành " + s.branch : "Toàn Gia Đình Hưng Đạo Trung Nam",
             totalExpected,
             presentCount: present,
             absentCount: absent,
@@ -1007,7 +1299,7 @@ async function executeTool(toolName, args, userContext) {
           data: {
             year,
             quarter,
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch,
             curriculumStatus: programStatus,
             lessonSchedule: programLessons,
             totalWeeklySessions: formattedSessions.length,
@@ -1042,7 +1334,7 @@ async function executeTool(toolName, args, userContext) {
         const formatted = users.map((u) => ({
           name: u.name,
           role: u.role || "trưởng",
-          branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo Trung Nam",
+          branch: u.branch ? "Ngành " + u.branch : "Toàn Gia Đình Hưng Đạo Trung Nam",
           email: u.email,
           eventsOrganized: u.sumEvent || 0,
           startYear: u.startYear ? new Date(u.startYear).getFullYear() : "—",
@@ -1104,7 +1396,7 @@ async function executeTool(toolName, args, userContext) {
               return {
                 id: p.id,
                 type: "Chương trình sinh hoạt Quý",
-                title: `Chương trình sinh hoạt Quý ${p.quarter}/${p.year} - ${bName.startsWith("Ngành") ? bName : `Ngành ${bName}`}`,
+                title: `Chương trình sinh hoạt Quý ${p.quarter}/${p.year} - ${bName.startsWith("Ngành") ? bName : "Ngành " + bName}`,
                 status: p.status,
                 branch: bName,
                 year: p.year,
@@ -1147,7 +1439,7 @@ async function executeTool(toolName, args, userContext) {
           data: {
             quarter,
             year,
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch,
             totalBirthdays: filteredMembers.length,
             byMonth: data.byMonth,
             birthdays: filteredMembers.map((m) => ({
@@ -1156,7 +1448,7 @@ async function executeTool(toolName, args, userContext) {
               birthDate: m.formattedDate + (m.birthYear ? `/${m.birthYear}` : ""),
               birthMonth: m.birthMonth,
               birthDay: m.birthDay,
-              branch: m.branch ? `Ngành ${m.branch}` : "—",
+              branch: m.branch ? "Ngành " + m.branch : "—",
               group: m.group || "—",
               parish: m.parish || "—",
               age: m.age,
@@ -1206,7 +1498,7 @@ async function executeTool(toolName, args, userContext) {
             contacts: members.map((m) => ({
               id: m.id,
               memberName: m.name,
-              branch: m.branch ? `Ngành ${m.branch}` : "—",
+              branch: m.branch ? "Ngành " + m.branch : "—",
               group: m.group || "—",
               phoneNumber: m.contact || "Chưa có SĐT",
               parents: `${m.fatherName ? `Bố: ${m.fatherName}` : ""}${m.fatherName && m.motherName ? " - " : ""}${m.motherName ? `Mẹ: ${m.motherName}` : ""}` || "Chưa cập nhật",
@@ -1225,13 +1517,13 @@ async function executeTool(toolName, args, userContext) {
         return {
           success: true,
           data: {
-            branch: targetBranch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${targetBranch}`,
+            branch: targetBranch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + targetBranch,
             count: streaks.length,
             topStreaks: streaks.map((s, idx) => ({
               rank: idx + 1,
               id: s.id,
               name: s.fullName,
-              branch: `Ngành ${s.branch}`,
+              branch: "Ngành " + s.branch,
               parish: s.parish || "—",
               currentStreak: s.currentStreak,
               longestStreak: s.longestStreak,
@@ -1259,7 +1551,7 @@ async function executeTool(toolName, args, userContext) {
         const attendances = await prisma.attendance.findMany({
           where: {
             sessionId: { in: sessionIds },
-            status: { in: ["ABSENT", "ABSENT_WITHOUT_PERMISSION", "ABSENT_WITH_PERMISSION", "EXCUSED"] },
+            status: { in: ["absent", "excused", "ABSENT", "ABSENT_WITHOUT_PERMISSION", "ABSENT_WITH_PERMISSION", "EXCUSED"] },
             member: { active: true, ...(branch && branch !== "all" ? { branch } : {}) },
           },
           include: {
@@ -1284,7 +1576,7 @@ async function executeTool(toolName, args, userContext) {
           .map((item) => ({
             id: item.member.id,
             name: item.member.name,
-            branch: item.member.branch ? `Ngành ${item.member.branch}` : "—",
+            branch: item.member.branch ? "Ngành " + item.member.branch : "—",
             group: item.member.group || "—",
             parish: item.member.parish || "—",
             phone: item.member.contact || "—",
@@ -1358,7 +1650,7 @@ async function executeTool(toolName, args, userContext) {
           data: {
             year,
             quarter,
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch,
             totalMembers,
             gradedCount,
             unratedCount,
@@ -1436,7 +1728,7 @@ async function executeTool(toolName, args, userContext) {
           data: {
             memberId: member.id,
             memberName: member.name,
-            branch: member.branch ? `Ngành ${member.branch}` : "—",
+            branch: member.branch ? "Ngành " + member.branch : "—",
             group: member.group || "—",
             totalActivitiesJoined: attended.length,
             totalSystemActivities: totalActivities,
@@ -1498,11 +1790,11 @@ async function executeTool(toolName, args, userContext) {
           success: true,
           data: {
             filterYear: filterYear || "Tất cả các năm gần đây",
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch,
             totalEnrolledInYear: filterYear ? totalJoinedInYear : newMembers.length,
             newlyEnrolledMembers: newMembers.map((m) => ({
               memberName: m.name,
-              branch: m.branch ? `Ngành ${m.branch}` : "—",
+              branch: m.branch ? "Ngành " + m.branch : "—",
               group: m.group || "—",
               parish: m.parish || "—",
               startYear: m.startYear ? `Năm ${m.startYear}` : "—",
@@ -1512,8 +1804,8 @@ async function executeTool(toolName, args, userContext) {
               memberName: p.member?.name || "Đoàn sinh",
               type: p.type === "BRANCH_PROMOTED" ? "Thăng cấp lên ngành" : p.type,
               date: p.date ? new Date(p.date).toLocaleDateString("vi-VN") : "—",
-              fromBranch: p.fromBranch ? `Ngành ${p.fromBranch}` : "—",
-              toBranch: p.toBranch ? `Ngành ${p.toBranch}` : "—",
+              fromBranch: p.fromBranch ? "Ngành " + p.fromBranch : "—",
+              toBranch: p.toBranch ? "Ngành " + p.toBranch : "—",
               note: p.note || "—",
             })),
           },
@@ -1532,10 +1824,10 @@ async function executeTool(toolName, args, userContext) {
         return {
           success: true,
           data: {
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch,
             totalGroups: groups.length,
             groups: groups.map((g) => ({
-              branch: g.branch ? `Ngành ${g.branch}` : "Chưa phân ngành",
+              branch: g.branch ? "Ngành " + g.branch : "Chưa phân ngành",
               groupName: g.group || "Chưa xếp đội/chi đoàn",
               memberCount: g._count.id,
             })),
@@ -1566,7 +1858,7 @@ async function executeTool(toolName, args, userContext) {
             leaderStats: users.map((u) => ({
               name: u.name,
               role: u.role || "trưởng",
-              branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo Trung Nam",
+              branch: u.branch ? "Ngành " + u.branch : "Toàn Gia Đình Hưng Đạo Trung Nam",
               eventsOrganized: u.sumEvent || u._count.activitiesCreated || 0,
               sessionsCreated: u._count.sessionsCreated || 0,
               attendancesMarked: u._count.attendancesMarked || 0,
@@ -1645,7 +1937,7 @@ async function executeTool(toolName, args, userContext) {
           success: true,
           data: {
             year: targetYear,
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch,
             totalActiveMembers: totalMembers,
             totalSessionsHeld: allSessions.length,
             totalActivitiesOrganized: allActivities.length,
@@ -1674,7 +1966,7 @@ async function executeTool(toolName, args, userContext) {
           else if (mCount / lCount <= 7) assessment = "Rất tối ưu, chăm sóc kèm cặp sát sao";
 
           return {
-            branch: `Ngành ${b}`,
+            branch: "Ngành " + b,
             leaderCount: lCount,
             memberCount: mCount,
             ratio: lCount > 0 ? `1 HT / ${ratio} ĐS` : "Chưa có HT",
@@ -1742,7 +2034,7 @@ async function executeTool(toolName, args, userContext) {
         const representatives = users.map((u) => ({
           name: u.name,
           role: u.role === "admin" ? "Ban Quản Trị (Admin)" : u.role || "trưởng",
-          branch: u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo",
+          branch: u.branch ? "Ngành " + u.branch : "Toàn Gia Đình Hưng Đạo",
           email: u.email || "—",
         }));
 
@@ -1815,7 +2107,7 @@ async function executeTool(toolName, args, userContext) {
                 const age = birthYear ? currentYear - birthYear : null;
                 return {
                   name: c.name,
-                  branch: `Ngành ${c.branch}`,
+                  branch: "Ngành " + c.branch,
                   group: c.group || "—",
                   birthYear: birthYear || "—",
                   age: age ? `${age} tuổi` : "—",
@@ -1850,11 +2142,11 @@ async function executeTool(toolName, args, userContext) {
         return {
           success: true,
           data: {
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch,
             count: inactiveMembers.length,
             members: inactiveMembers.map((m) => ({
               name: m.name,
-              branch: `Ngành ${m.branch}`,
+              branch: "Ngành " + m.branch,
               group: m.group || "—",
               parish: m.parish || "—",
               phone: m.contact || "—",
@@ -1949,7 +2241,7 @@ async function executeTool(toolName, args, userContext) {
           data: {
             year: targetYear,
             quarter: targetQuarter,
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch,
             totalPrograms: filtered.length,
             programStatus: filtered.map((p) => `${p.branch?.name || p.branchId || "Ngành"}: ${p.status || "DRAFT"}`).join(", "),
             totalLessons,
@@ -1989,7 +2281,7 @@ async function executeTool(toolName, args, userContext) {
           if (gap >= 4.0 || lowScores.length > 0) {
             anomalies.push({
               name: m.name,
-              branch: `Ngành ${m.branch}`,
+              branch: "Ngành " + m.branch,
               group: m.group || "—",
               maxScore: max,
               minScore: min,
@@ -2005,7 +2297,7 @@ async function executeTool(toolName, args, userContext) {
           data: {
             year,
             quarter,
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch,
             count: anomalies.length,
             anomalies: anomalies.sort((a, b) => b.gap - a.gap).slice(0, 10),
           },
@@ -2057,7 +2349,7 @@ async function executeTool(toolName, args, userContext) {
           success: true,
           data: {
             date: new Date(session.date).toLocaleDateString("vi-VN"),
-            branch: `Ngành ${session.branch}`,
+            branch: "Ngành " + session.branch,
             totalActiveMembers: activeTotal,
             absentCount: session.attendances.length,
             presentCount: Math.max(0, activeTotal - session.attendances.length),
@@ -2097,7 +2389,7 @@ async function executeTool(toolName, args, userContext) {
           success: true,
           data: {
             year,
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch,
             totalSessions: sessions.length,
             distribution: Object.entries(dayStats).map(([day, st]) => ({
               day,
@@ -2146,12 +2438,12 @@ async function executeTool(toolName, args, userContext) {
         return {
           success: true,
           data: {
-            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`,
+            branch: branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch,
             totalActiveMembersInScope: totalBranchMembers,
             unassignedGroupMembersCount: unassignedMembers.length,
             unassignedLeadersCount: unassignedLeaders.length,
             missingChurchMembersCount: missingChurchMembers.length,
-            unassignedMembersList: unassignedMembers.map((m) => ({ name: m.name, branch: `Ngành ${m.branch}`, parish: m.parish || "—", phone: m.contact || "—" })),
+            unassignedMembersList: unassignedMembers.map((m) => ({ name: m.name, branch: "Ngành " + m.branch, parish: m.parish || "—", phone: m.contact || "—" })),
             unassignedLeaders: unassignedLeaders.map((l) => ({ name: l.name, email: l.email })),
           },
         };
@@ -2210,7 +2502,7 @@ async function executeTool(toolName, args, userContext) {
             member: {
               id: member.id,
               name: member.name,
-              branch: `Ngành ${member.branch}`,
+              branch: "Ngành " + member.branch,
               group: member.group || "—",
               birthDate: member.birthDate ? new Date(member.birthDate).toLocaleDateString("vi-VN") : "—",
               gender: member.gender || "—",
@@ -2234,11 +2526,613 @@ async function executeTool(toolName, args, userContext) {
             })),
             promotionHistory: (member.statusHistory || []).map((h) => ({
               type: h.type,
-              from: h.fromBranch ? `Ngành ${h.fromBranch}` : "Gia nhập",
-              to: h.toBranch ? `Ngành ${h.toBranch}` : "—",
+              from: h.fromBranch ? "Ngành " + h.fromBranch : "Gia nhập",
+              to: h.toBranch ? "Ngành " + h.toBranch : "—",
               date: new Date(h.createdAt).toLocaleDateString("vi-VN"),
               note: h.reason || "—",
             })),
+          },
+        };
+      }
+
+      // 38. Cơ cấu tổ chức Gia Đình Hưng Đạo
+      case "get_organization_structure": {
+        const targetBranch = args.branch || branch || "all";
+        const membersWhere = { active: true };
+        if (targetBranch !== "all") membersWhere.branch = targetBranch;
+
+        const members = await prisma.member.findMany({
+          where: membersWhere,
+          select: { id: true, branch: true, group: true },
+        });
+
+        const leaders = await prisma.user.findMany({
+          where: { active: true },
+          select: { id: true, name: true, role: true, branch: true, email: true, phone: true },
+          orderBy: { name: "asc" },
+        });
+
+        const branchStats = {
+          Đồng: { name: "Ngành Đồng (Ấu nhi)", ageRange: "6 - 11 tuổi (Lớp 1 - Lớp 5)", motto: "Vâng Lời", scarfColor: "Xanh lá mạ viền vàng", count: 0, leader: "Vườn Trưởng Đoàn Thị Hoàng Trâm", patron: "Chúa Hài Đồng & Thánh Nữ Têrêsa Hài Đồng Giêsu" },
+          Thiếu: { name: "Ngành Thiếu (Thiếu nhi)", ageRange: "12 - 14 tuổi (Lớp 6 - Lớp 8)", motto: "Hy Sinh", scarfColor: "Xanh biển viền vàng", count: 0, leader: "Thiếu Trưởng Nguyễn Đăng Đạo", patron: "Thánh Phêrô & Thánh Đaminh Saviô" },
+          Thanh: { name: "Ngành Thanh (Nghĩa sĩ)", ageRange: "15 - 18 tuổi (Lớp 9 - Lớp 12)", motto: "Chinh Phục / Dấn Thân", scarfColor: "Vàng nghệ viền đỏ", count: 0, leader: "Thanh Trưởng Nguyễn Anh Nhật Vũ", patron: "Thánh Phaolô Tông Đồ" },
+        };
+
+        members.forEach((m) => {
+          if (branchStats[m.branch]) {
+            branchStats[m.branch].count++;
+          }
+        });
+
+        return {
+          success: true,
+          data: {
+            organizationName: "Gia Đình Hưng Đạo Trung Nam",
+            movement: "Phong trào Thiếu Nhi Thánh Thể",
+            headquarters: "Giáo họ Trung Nam",
+            mottos: ["Cầu Nguyện", "Rước Lễ", "Hy Sinh", "Làm Tông Đồ"],
+            totalActiveMembers: members.length,
+            totalLeaders: leaders.length,
+            branchStats: Object.values(branchStats),
+            leadersList: leaders,
+          },
+        };
+      }
+
+      // 39. Phân tích chi tiết số liệu chuyên cần
+      case "get_attendance_analytics": {
+        const targetBranch = args.branch || branch || "all";
+        const sessionWhere = {};
+        if (targetBranch !== "all") sessionWhere.branch = targetBranch;
+
+        const startMonth = (quarter - 1) * 3;
+        const startDate = new Date(year, startMonth, 1);
+        const endDate = new Date(year, startMonth + 3, 0, 23, 59, 59);
+        sessionWhere.date = { gte: startDate, lte: endDate };
+
+        const sessions = await prisma.session.findMany({
+          where: sessionWhere,
+          orderBy: { date: "asc" },
+        });
+
+        const sessionIds = sessions.map((s) => s.id);
+        const attendances = await prisma.attendance.findMany({
+          where: { sessionId: { in: sessionIds } },
+        });
+
+        const memberWhere = { active: true };
+        if (targetBranch !== "all") memberWhere.branch = targetBranch;
+        const totalActive = await prisma.member.count({ where: memberWhere });
+
+        const totalSessions = sessions.length;
+        const totalPossible = totalSessions * (totalActive || 1);
+
+        let absentCount = 0;
+        let lateCount = 0;
+        let excusedCount = 0;
+
+        attendances.forEach((a) => {
+          const st = (a.status || "").toLowerCase();
+          if (st === "absent") absentCount++;
+          else if (st === "late") lateCount++;
+          else if (st === "excused") excusedCount++;
+        });
+
+        const weightedAbsence = absentCount * 1.0 + lateCount * 0.5 + excusedCount * 0.2;
+        const estimatedPresent = Math.max(0, totalPossible - (absentCount + lateCount + excusedCount));
+        const attendanceRate = totalPossible > 0
+          ? Math.max(0, Math.min(100, (((totalPossible - weightedAbsence) / totalPossible) * 100))).toFixed(1)
+          : "100.0";
+        const avgScore = (parseFloat(attendanceRate) / 10).toFixed(1);
+
+        return {
+          success: true,
+          data: {
+            year,
+            quarter,
+            branch: targetBranch,
+            totalActiveMembers: totalActive,
+            totalSessions,
+            totalPossibleAttendances: totalPossible,
+            estimatedPresent,
+            absentCount,
+            lateCount,
+            excusedCount,
+            attendanceRate: `${attendanceRate}%`,
+            averageScore: avgScore,
+            formula: "AttendanceRate = ((Tổng lượt - (Vắng*1 + Trễ*0.5 + Phép*0.2)) / Tổng lượt) * 100",
+          },
+        };
+      }
+
+      // 40. Phân bố theo Giáo xứ/Họ Đạo & Giáo họ/Xã đạo
+      case "get_church_parish_breakdown": {
+        const targetBranch = args.branch || branch || "all";
+        const where = { active: true };
+        if (targetBranch !== "all") where.branch = targetBranch;
+
+        const members = await prisma.member.findMany({
+          where,
+          select: { id: true, name: true, parish: true, church: true, branch: true, group: true },
+        });
+
+        const parishCounts = {};
+        const churchCounts = {};
+
+        members.forEach((m) => {
+          const p = m.parish && m.parish.trim() && m.parish !== "-" ? m.parish.trim() : "Chưa cập nhật";
+          const c = m.church && m.church.trim() && m.church !== "-" ? m.church.trim() : "Chưa cập nhật";
+          parishCounts[p] = (parishCounts[p] || 0) + 1;
+          churchCounts[c] = (churchCounts[c] || 0) + 1;
+        });
+
+        const total = members.length;
+        const parishRanking = Object.entries(parishCounts)
+          .map(([name, count]) => ({
+            name,
+            count,
+            percentage: ((count / (total || 1)) * 100).toFixed(1) + "%",
+          }))
+          .sort((a, b) => b.count - a.count);
+
+        const churchRanking = Object.entries(churchCounts)
+          .map(([name, count]) => ({
+            name,
+            count,
+            percentage: ((count / (total || 1)) * 100).toFixed(1) + "%",
+          }))
+          .sort((a, b) => b.count - a.count);
+
+        return {
+          success: true,
+          data: {
+            totalMembers: total,
+            branch: targetBranch,
+            parishRanking,
+            churchRanking,
+            topParish: parishRanking[0] || null,
+            topChurch: churchRanking[0] || null,
+          },
+        };
+      }
+
+      // 41. Hỏi đáp & Quy chế (FAQs & Guidelines)
+      case "get_faqs_and_guidelines": {
+        const category = args.category || "all";
+        const faqs = [
+          {
+            category: "schedule",
+            question: "Thời gian và địa điểm sinh hoạt hàng tuần như thế nào?",
+            answer: "Sinh hoạt định kỳ vào mỗi chiều Chúa Nhật hàng tuần (từ 14h30 đến 17h00) tại khuôn viên Giáo họ Trung Nam. Các em tham dự Thánh lễ, chào cờ, học giáo lý theo ngành và sinh hoạt trò chơi kỹ năng hàng đội.",
+          },
+          {
+            category: "uniform",
+            question: "Quy định đồng phục của đoàn sinh và các ngành?",
+            answer: "Đoàn sinh mặc áo sơ mi trắng ngắn tay có thêu phù hiệu TNTT trên ngực trái, quần tây (hoặc váy cho nữ) màu xanh đen sẫm, mang giày ba-ta hoặc quai hậu. Đeo khăn quàng đúng cấp ngành: Ngành Đồng (xanh lá mạ viền vàng), Ngành Thiếu (xanh biển viền vàng), Ngành Thanh (vàng nghệ viền đỏ).",
+          },
+          {
+            category: "motto",
+            question: "Bốn tôn chỉ của Phong trào Thiếu Nhi Thánh Thể là gì?",
+            answer: "Bốn tôn chỉ cốt lõi: 1. Cầu Nguyện (sống kết hợp mật thiết với Chúa) - 2. Rước Lễ (siêng năng đón rước Thánh Thể) - 3. Hy Sinh (vui tươi vượt khó, hy sinh bản thân) - 4. Làm Tông Đồ (làm gương sáng, đem Tin Mừng lan tỏa khắp nơi).",
+          },
+          {
+            category: "attendance",
+            question: "Quy chế điểm danh, xin phép vắng và xử lý trễ giờ?",
+            answer: "Điểm danh theo cơ chế ngoại lệ. Vắng có phép tính quy đổi 0.2 buổi, đi trễ tính 0.5 buổi, vắng không phép tính 1.0 buổi. Nếu vắng, phụ huynh/đoàn sinh cần báo trước qua điện thoại hoặc nhóm Zalo cho Trưởng phụ trách ít nhất 2 giờ. Đoàn sinh vắng từ 2 buổi liên tiếp sẽ được Trưởng liên hệ thăm hỏi.",
+          },
+          {
+            category: "tuition",
+            question: "Chi phí tham gia sinh hoạt hoặc học phí có tốn không?",
+            answer: "Sinh hoạt tại Gia Đình Hưng Đạo Trung Nam là HOÀN TOÀN MIỄN PHÍ. Ban Trưởng phục vụ thiện nguyện và các hoạt động được sự bảo trợ của Giáo họ Trung Nam.",
+          },
+          {
+            category: "registration",
+            question: "Cách thức đăng ký gia nhập cho đoàn sinh mới?",
+            answer: "Phụ huynh có thể liên hệ trực tiếp Ban Trưởng vào đầu giờ chiều Chúa Nhật hoặc gửi thông tin (Họ tên, ngày sinh, tên phụ huynh, SĐT, Xã đạo) để được hướng dẫn xếp ngành phù hợp theo độ tuổi.",
+          },
+        ];
+
+        const filtered = category === "all" ? faqs : faqs.filter((f) => f.category === category);
+        return {
+          success: true,
+          data: {
+            category,
+            totalFaqs: filtered.length,
+            faqs: filtered,
+          },
+        };
+      }
+
+      // 42. Lộ trình giáo lý & Mục tiêu sư phạm 3 ngành
+      case "get_branch_curriculum_overview": {
+        const targetBranch = args.branch || branch || "all";
+        const curriculum = [
+          {
+            branch: "Đồng",
+            title: "Ngành Đồng (Ấu nhi)",
+            age: "6 - 11 tuổi (Lớp 1 đến Lớp 5)",
+            motto: "Vâng Lời",
+            scarf: "Xanh lá mạ viền vàng (mầm non, tươi vui, hy vọng)",
+            patron: "Chúa Hài Đồng & Thánh Nữ Têrêsa Hài Đồng Giêsu",
+            leader: "Vườn Trưởng Đoàn Thị Hoàng Trâm",
+            pedagogyFocus: "Sư phạm giáo dục tâm tình vâng phục, ngây thơ, yêu thương gia đình, cầu nguyện đơn sơ.",
+            coreSubjects: ["Giáo lý Khai Tâm & Xưng Tội Rước Lễ Lần Đầu", "Nhân bản sơ cấp", "Ca múa & Trò chơi vận động", "Kỹ năng hàng đội cơ bản"],
+          },
+          {
+            branch: "Thiếu",
+            title: "Ngành Thiếu (Thiếu nhi)",
+            age: "12 - 14 tuổi (Lớp 6 đến Lớp 8)",
+            motto: "Hy Sinh",
+            scarf: "Xanh biển viền vàng (biển rộng, trời cao, lý tưởng trong sáng)",
+            patron: "Thánh Phêrô & Thánh Đaminh Saviô",
+            leader: "Thiếu Trưởng Nguyễn Đăng Đạo",
+            pedagogyFocus: "Sư phạm rèn luyện đức tính hy sinh, trung thực, vượt khó, kỷ luật và tinh thần đồng đội.",
+            coreSubjects: ["Giáo lý Thêm Sức", "Nhân bản & Đạo đức học đường", "Nút dây, dấu đường, mật thư sơ cấp", "Cứu thương & Sơ cấp cứu"],
+          },
+          {
+            branch: "Thanh",
+            title: "Ngành Thanh (Nghĩa sĩ / Hiệp sĩ)",
+            age: "15 - 18 tuổi (Lớp 9 đến Lớp 12)",
+            motto: "Chinh Phục / Dấn Thân",
+            scarf: "Vàng nghệ viền đỏ (ánh sáng đức tin rực rỡ và lòng nhiệt thành)",
+            patron: "Thánh Phaolô Tông Đồ",
+            leader: "Thanh Trưởng Nguyễn Anh Nhật Vũ",
+            pedagogyFocus: "Sư phạm định hướng lý tưởng sống, bảo vệ đức tin, tinh thần dấn thân phục vụ Giáo hội và xã hội.",
+            coreSubjects: ["Giáo lý Vào Đời & Kinh Thánh", "Kỹ năng lãnh đạo & Thuyết trình", "Trại sinh tồn, la bàn & Ước đạc", "Tổ chức trò chơi lớn & Công tác xã hội"],
+          },
+        ];
+
+        const result = targetBranch === "all" ? curriculum : curriculum.filter((c) => c.branch === targetBranch);
+        return {
+          success: true,
+          data: {
+            branch: targetBranch,
+            curriculum: result,
+          },
+        };
+      }
+
+      // 43. Lịch phụng vụ & Lễ Bổn mạng
+      case "get_liturgical_calendar_and_feasts": {
+        const feasts = [
+          {
+            scope: "Gia Đình Hưng Đạo",
+            title: "Lễ Chúa Kitô Vua Vũ Trụ",
+            date: "Chúa Nhật XXXIV Thường Niên (Cuối tháng 11)",
+            meaning: "Bổn mạng toàn thể Gia Đình Hưng Đạo Trung Nam, tôn vinh Chúa Giêsu là Vua ngự trị trong mọi tâm hồn.",
+          },
+          {
+            scope: "Ngành Đồng",
+            title: "Lễ Thánh Nữ Têrêsa Hài Đồng Giêsu & Chúa Hài Đồng",
+            date: "01/10 & 25/12 (Giáng Sinh)",
+            meaning: "Quan thầy Ngành Đồng, noi gương 'con đường thơ ấu thiêng liêng', làm việc nhỏ với tình yêu lớn.",
+          },
+          {
+            scope: "Ngành Thiếu",
+            title: "Lễ Thánh Đaminh Saviô & Thánh Phêrô Tông Đồ",
+            date: "06/05 & 29/06",
+            meaning: "Quan thầy Ngành Thiếu, sống theo châm ngôn 'Thà chết chứ không phạm tội' và kiên vững trong đức tin.",
+          },
+          {
+            scope: "Ngành Thanh",
+            title: "Lễ Thánh Phaolô Tông Đồ Trở Lại",
+            date: "25/01 & 29/06",
+            meaning: "Quan thầy Ngành Thanh, tinh thần hoán cải mãnh liệt, can đảm ra đi loan báo Tin Mừng.",
+          },
+          {
+            scope: "Ban Trưởng",
+            title: "Lễ Các Thánh Tử Đạo Việt Nam",
+            date: "24/11",
+            meaning: "Quan thầy Ban Trưởng, noi gương các bậc tiền nhân anh dũng hy sinh vì đức tin, tận tụy chăm sóc đoàn sinh.",
+          },
+          {
+            scope: "Phong trào Toàn quốc",
+            title: "Đại lễ Mình và Máu Thánh Chúa Kitô",
+            date: "Chúa Nhật sau Lễ Chúa Ba Ngôi",
+            meaning: "Quan thầy Phong trào Thiếu Nhi Thánh Thể toàn quốc, trung tâm của đời sống Thánh Thể.",
+          },
+        ];
+
+        return {
+          success: true,
+          data: {
+            organization: "Gia Đình Hưng Đạo Trung Nam",
+            totalFeasts: feasts.length,
+            feasts,
+          },
+        };
+      }
+
+      // 44. Thống kê Hoạt động Cắm trại & Dã ngoại
+      case "get_camp_participants_and_activities": {
+        const targetBranch = args.branch || branch || "all";
+        const activityWhere = { year };
+        if (args.quarter) activityWhere.quarter = Number(args.quarter);
+
+        if (args.activityName && typeof args.activityName === "string" && args.activityName.trim()) {
+          activityWhere.name = { contains: args.activityName.trim(), mode: "insensitive" };
+        }
+
+        const activities = await prisma.activity.findMany({
+          where: activityWhere,
+          include: {
+            attendances: {
+              include: {
+                member: {
+                  select: { id: true, name: true, branch: true, group: true, parish: true },
+                },
+              },
+            },
+          },
+          orderBy: { date: "desc" },
+        });
+
+        const memberWhere = { active: true };
+        if (targetBranch !== "all") memberWhere.branch = targetBranch;
+        const totalActive = await prisma.member.count({ where: memberWhere });
+
+        const formattedActivities = activities.map((act) => {
+          let participants = act.attendances.map((att) => att.member).filter(Boolean);
+          if (targetBranch !== "all") {
+            participants = participants.filter((m) => m.branch === targetBranch);
+          }
+
+          const branchBreakdown = { Đồng: 0, Thiếu: 0, Thanh: 0 };
+          participants.forEach((p) => {
+            if (branchBreakdown[p.branch] !== undefined) branchBreakdown[p.branch]++;
+          });
+
+          const rate = totalActive > 0 ? ((participants.length / totalActive) * 100).toFixed(1) + "%" : "0.0%";
+
+          return {
+            id: act.id,
+            name: act.name,
+            description: act.description || "Hoạt động cắm trại, dã ngoại, sinh hoạt ngoại khóa Gia Đình Hưng Đạo",
+            date: new Date(act.date).toLocaleDateString("vi-VN"),
+            quarter: act.quarter,
+            year: act.year,
+            participantCount: participants.length,
+            participationRate: rate,
+            branchBreakdown,
+            participantsList: participants.slice(0, 30).map((p, idx) => ({
+              stt: idx + 1,
+              id: p.id,
+              name: p.name,
+              branch: p.branch,
+              group: p.group || "Chưa xếp đội",
+            })),
+          };
+        });
+
+        return {
+          success: true,
+          data: {
+            year,
+            quarter: args.quarter || "Cả năm",
+            branch: targetBranch,
+            totalActiveMembers: totalActive,
+            totalActivities: activities.length,
+            activities: formattedActivities,
+          },
+        };
+      }
+
+      // 45. Sinh nhật sắp tới trong vòng 30 ngày
+      case "get_upcoming_birthdays_next_30_days": {
+        const targetBranch = args.branch || branch || "all";
+        const memberWhere = { active: true, birthDate: { not: null } };
+        if (targetBranch !== "all") memberWhere.branch = targetBranch;
+
+        const members = await prisma.member.findMany({
+          where: memberWhere,
+          select: { id: true, name: true, birthDate: true, branch: true, group: true, parish: true, contact: true },
+        });
+
+        const leaders = await prisma.user.findMany({
+          where: { active: true, birthDate: { not: null } },
+          select: { id: true, name: true, birthDate: true, branch: true, role: true, phone: true },
+        });
+
+        const now = new Date();
+        const curY = now.getFullYear();
+        const allList = [];
+
+        const processItem = (item, isLeader) => {
+          const bDate = new Date(item.birthDate);
+          if (isNaN(bDate.getTime())) return;
+
+          let nextBday = new Date(curY, bDate.getMonth(), bDate.getDate());
+          if (nextBday < new Date(curY, now.getMonth(), now.getDate())) {
+            nextBday = new Date(curY + 1, bDate.getMonth(), bDate.getDate());
+          }
+
+          const diffTime = nextBday.getTime() - now.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          if (diffDays >= 0 && diffDays <= 30) {
+            const ageTurning = nextBday.getFullYear() - bDate.getFullYear();
+            allList.push({
+              id: item.id,
+              name: item.name,
+              isLeader,
+              role: isLeader ? (item.role || "Trưởng") : "Đoàn sinh",
+              branch: item.branch || "—",
+              group: item.group || "—",
+              parish: item.parish || "—",
+              contact: item.contact || item.phone || "—",
+              birthDateFormatted: `${String(bDate.getDate()).padStart(2, "0")}/${String(bDate.getMonth() + 1).padStart(2, "0")}/${bDate.getFullYear()}`,
+              birthdayThisYear: `${String(bDate.getDate()).padStart(2, "0")}/${String(bDate.getMonth() + 1).padStart(2, "0")}`,
+              daysLeft: diffDays,
+              ageTurning,
+            });
+          }
+        };
+
+        members.forEach((m) => processItem(m, false));
+        leaders.forEach((u) => processItem(u, true));
+
+        allList.sort((a, b) => a.daysLeft - b.daysLeft);
+
+        const limit = args.limit ? Number(args.limit) : 25;
+        const result = allList.slice(0, limit);
+
+        return {
+          success: true,
+          data: {
+            totalFound: allList.length,
+            showing: result.length,
+            branch: targetBranch,
+            birthdays: result,
+          },
+        };
+      }
+
+      // 46. So sánh chuyên cần 4 Quý
+      case "get_attendance_comparison_by_quarter": {
+        const targetYear = args.year ? Number(args.year) : year;
+        const targetBranch = args.branch || branch || "all";
+        const quartersData = [];
+
+        for (let q = 1; q <= 4; q++) {
+          const startMonth = (q - 1) * 3;
+          const startDate = new Date(targetYear, startMonth, 1);
+          const endDate = new Date(targetYear, startMonth + 3, 0, 23, 59, 59);
+
+          const sessionWhere = {
+            date: { gte: startDate, lte: endDate },
+          };
+          if (targetBranch !== "all") sessionWhere.branch = targetBranch;
+
+          const sessions = await prisma.session.findMany({ where: sessionWhere });
+          const totalSessions = sessions.length;
+
+          const memberWhere = { active: true };
+          if (targetBranch !== "all") memberWhere.branch = targetBranch;
+          const totalActive = await prisma.member.count({ where: memberWhere });
+
+          let attendanceRate = "—";
+          let absentCount = 0;
+          let lateCount = 0;
+          let excusedCount = 0;
+
+          if (totalSessions > 0) {
+            const sessionIds = sessions.map((s) => s.id);
+            const attendances = await prisma.attendance.findMany({
+              where: { sessionId: { in: sessionIds } },
+            });
+
+            attendances.forEach((a) => {
+              const st = (a.status || "").toLowerCase();
+              if (st === "absent") absentCount++;
+              else if (st === "late") lateCount++;
+              else if (st === "excused") excusedCount++;
+            });
+
+            const totalPossible = totalSessions * (totalActive || 1);
+            const weightedAbsence = absentCount * 1.0 + lateCount * 0.5 + excusedCount * 0.2;
+            const rateNum = Math.max(0, Math.min(100, ((totalPossible - weightedAbsence) / (totalPossible || 1)) * 100));
+            attendanceRate = rateNum.toFixed(1) + "%";
+          }
+
+          quartersData.push({
+            quarter: `Quý ${q}/${targetYear}`,
+            quarterNumber: q,
+            totalSessions,
+            totalActiveMembers: totalActive,
+            absentCount,
+            lateCount,
+            excusedCount,
+            attendanceRate,
+          });
+        }
+
+        return {
+          success: true,
+          data: {
+            year: targetYear,
+            branch: targetBranch,
+            quarters: quartersData,
+          },
+        };
+      }
+
+      // 47. Ghi chú sư phạm & Sức khỏe đoàn sinh
+      case "get_member_health_and_notes": {
+        const targetBranch = args.branch || branch || "all";
+        const where = { active: true };
+        if (targetBranch !== "all") where.branch = targetBranch;
+
+        if (args.query && typeof args.query === "string" && args.query.trim()) {
+          where.OR = [
+            { name: { contains: args.query.trim(), mode: "insensitive" } },
+            { address: { contains: args.query.trim(), mode: "insensitive" } },
+          ];
+        }
+
+        const members = await prisma.member.findMany({
+          where,
+          include: {
+            attendances: {
+              where: { note: { not: null } },
+              take: 5,
+              orderBy: { date: "desc" },
+            },
+            statusHistory: {
+              where: { note: { not: null } },
+              take: 5,
+              orderBy: { date: "desc" },
+            },
+          },
+          take: 50,
+        });
+
+        const notesList = [];
+        members.forEach((m) => {
+          const notes = [];
+          if (m.address && m.address.trim() && m.address !== "-") {
+            notes.push({ type: "Địa chỉ / Khu vực", content: m.address });
+          }
+          (m.attendances || []).forEach((att) => {
+            if (att.note && att.note.trim()) {
+              notes.push({
+                type: "Ghi chú điểm danh",
+                date: new Date(att.date).toLocaleDateString("vi-VN"),
+                content: att.note,
+              });
+            }
+          });
+          (m.statusHistory || []).forEach((sh) => {
+            if (sh.note && sh.note.trim()) {
+              notes.push({
+                type: "Ghi chú thăng cấp / trạng thái",
+                date: new Date(sh.date).toLocaleDateString("vi-VN"),
+                content: sh.note,
+              });
+            }
+          });
+
+          if (notes.length > 0 || (args.query && args.query.trim())) {
+            notesList.push({
+              id: m.id,
+              name: m.name,
+              branch: m.branch,
+              group: m.group || "Chưa xếp đội",
+              parish: m.parish || "—",
+              contact: m.contact || "—",
+              fatherName: m.fatherName || "—",
+              motherName: m.motherName || "—",
+              notes,
+            });
+          }
+        });
+
+        return {
+          success: true,
+          data: {
+            totalFound: notesList.length,
+            branch: targetBranch,
+            query: args.query || "Tất cả",
+            members: notesList,
           },
         };
       }
@@ -2274,6 +3168,7 @@ QUY TẮC BẮT BUỘC VỀ DANH XƯNG & THUẬT NGỮ (TUÂN THỦ 100%):
 
 Nguyên tắc bắt buộc:
 1. 100% DỮ LIỆU THỰC TẾ TỪ DATABASE: Mọi thông tin (độ tuổi, năm sinh, sĩ số, chuyên cần, điểm số, nhân sự, giáo án, phê duyệt) BẮT BUỘC phải gọi Công cụ (AI Tools) để truy vấn từ cơ sở dữ liệu. Tuyệt đối không tự suy diễn hoặc dùng kiến thức lý thuyết chung ngoài đời.
+2. TRA CỨU DANH SÁCH ĐOÀN SINH THEO NĂM SINH / ĐỘ TUỔI / NGÀNH / ĐỘI / XÃ ĐẠO (ví dụ: "danh sách tên các bạn đoàn sinh 2012", "đoàn sinh 2012", "sinh năm 2012", "các bạn 14 tuổi", "danh sách nữ ngành Thiếu", "danh sách đội Tùng"): BẮT BUỘC gọi công cụ \`get_members_list\` (với tham số \`birthYear: 2012\`, \`age: 14\`, \`branch: 'Thiếu'\`, \`group: 'Tùng'\`...). Luôn xuất bảng chi tiết đầy đủ gồm Họ tên, Ngày sinh, Tuổi, Giới tính, Ngành, Đội, Xã đạo, SĐT liên hệ, Tên Cha Mẹ. Nếu người dùng chỉ nói một năm như "đoàn sinh 2012", hãy ưu tiên hiểu là năm sinh (birthYear: 2012).
 2. Khi người dùng hỏi về ĐỘ TUỔI, NĂM SINH, CƠ CẤU NHÂN KHẨU (ví dụ: "các bạn độ tuổi từ bao nhiêu đến bao nhiêu", "bao nhiêu tuổi", "sinh năm mấy"): BẮT BUỘC gọi công cụ \`get_member_demographics\` với tham số \`groupBy: 'birthYear'\` để tính toán độ tuổi thực tế từ Database.
 3. TUYỆT ĐỐI KHÔNG HỨA HẸN ẢO: Bạn chỉ là Trợ lý tra cứu (Read-Only), KHÔNG CÓ QUYỀN tự động sửa code, sửa database hay tự gửi báo cáo kỹ thuật. Tuyệt đối không nói các câu hứa hẹn ảo như "tôi đã ghi nhận để báo cáo kỹ thuật cập nhật lại". Nếu dữ liệu chưa chính xác, hãy giải thích trung thực về dữ liệu hiện tại trong hệ thống.
 
@@ -2300,29 +3195,265 @@ Phong cách trả lời:
 // ─────────────────────────────────────────────────────────────────────────────
 async function generateFallbackResponse(message, userContext) {
   const q = message.toLowerCase();
+  const noAccentQ = q.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
+  const matchAny = (...keywords) => keywords.some((k) => q.includes(k) || noAccentQ.includes(k));
+
   const currentYear = new Date().getFullYear();
   const currentQuarter = Math.floor(new Date().getMonth() / 3) + 1;
 
   let branch = "all";
-  if (q.includes("thiếu")) branch = "Thiếu";
-  else if (q.includes("đồng")) branch = "Đồng";
-  else if (q.includes("thanh")) branch = "Thanh";
+  if (matchAny("thieu")) branch = "Thiếu";
+  else if (matchAny("dong")) branch = "Đồng";
+  else if (matchAny("thanh")) branch = "Thanh";
 
   try {
+    // -2. Chào hỏi, bắt đầu, câu hỏi làm quen (dành cho người mới mở khung chat)
+    const isGreeting =
+      ["alo", "xin chao", "chao", "chao ban", "chao em", "hi", "hello", "bat dau", "hoi xiu"].some(
+        (w) => noAccentQ === w || noAccentQ.startsWith(w + " ") || noAccentQ.endsWith(" " + w) || noAccentQ.includes(" " + w + " ")
+      ) ||
+      matchAny("giup minh", "huong dan", "tro ly", "cho hoi");
+
+    if (isGreeting && !matchAny("xin nghi", "nghi hoc", "hoc phi", "dong phuc", "may gio", "sdt", "lien he")) {
+      let md = `### 👋 Xin chào Trưởng & Quý phụ huynh!\n\n`;
+      md += `Em là **Trợ lý Đồng hành của Gia Đình Hưng Đạo Trung Nam**. Trưởng hoặc Quý phụ huynh có thể hỏi em bất kỳ điều gì bằng lời nói tự nhiên hàng ngày:\n\n`;
+      md += `* 👨‍👩‍👧 **Dành cho Phụ huynh & Người mới:**\n`;
+      md += `  - *"Bé 8 tuổi học lớp nào, ai phụ trách?"*\n`;
+      md += `  - *"Chúa Nhật sinh hoạt mấy giờ và mặc đồng phục gì?"*\n`;
+      md += `  - *"Học phí thế nào và làm sao để đăng ký tham gia?"*\n`;
+      md += `  - *"Muốn xin nghỉ học cho con thì liên hệ ai?"*\n`;
+      md += `* 👔 **Dành cho Ban Trưởng:**\n`;
+      md += `  - *"Danh sách các em vắng nhiều cần thăm hỏi"*\n`;
+      md += `  - *"Ai có sinh nhật trong 30 ngày tới?"*\n`;
+      md += `  - *"Danh bạ số điện thoại liên lạc khẩn cấp phụ huynh"*\n`;
+      md += `  - *"So sánh tỷ lệ chuyên cần các ngành Quý này"*\n\n`;
+      md += `💡 *Trưởng hoặc Quý vị có thể gõ trực tiếp câu hỏi vào ô bên dưới hoặc bấm vào các nút gợi ý có sẵn nhé!*\n`;
+      return md;
+    }
+
+    // -1.5. Hướng dẫn xin phép nghỉ học / vắng phép
+    if (matchAny("xin nghi", "nghi hoc", "bi om", "bi benh", "ban viec", "vang phep", "nghi phep")) {
+      let md = `### 📝 Hướng dẫn Xin phép Nghỉ học / Vắng có phép\n\n`;
+      md += `Kính gửi Quý phụ huynh và Đoàn sinh,\n\n`;
+      md += `Để đảm bảo an toàn và nề nếp sinh hoạt của các em, quy trình xin phép vắng rất đơn giản:\n\n`;
+      md += `1. **Thời gian báo phép:** Trước giờ tập hợp ít nhất **2 tiếng** (trước 12h30 trưa Chúa Nhật).\n`;
+      md += `2. **Hình thức:** Phụ huynh gọi điện hoặc nhắn tin trực tiếp qua Zalo cho Trưởng phụ trách Ngành của bé.\n`;
+      md += `3. **Quyền lợi chuyên cần:** Buổi vắng có phép chỉ tính quy đổi **0.2** (thay vì 1.0 như vắng không phép), giúp bảo lưu điểm thi đua cho các em.\n\n`;
+      md += `#### 📞 Danh bạ Trưởng Phụ Trách các Ngành:\n`;
+      md += `* 🟢 **Ngành Đồng (6-11 tuổi):** Vườn trưởng Đoàn Thị Hoàng Trâm (Email: \`phuquocvuondong@gmail.com\`)\n`;
+      md += `* 🔵 **Ngành Thiếu (12-14 tuổi):** Thiếu Trưởng Nguyễn Đăng Đạo (Email: \`nguyendangdao35@gmail.com\`)\n`;
+      md += `* 🔴 **Ngành Thanh (15-18 tuổi):** Thanh Trưởng Nguyễn Anh Nhật Vũ (Email: \`nguyenanhnhatvu@gmail.com\`)\n\n`;
+      md += `💡 *Nếu cần tra cứu số điện thoại cụ thể của phụ huynh khác, hãy hỏi: "Danh bạ liên lạc khẩn cấp phụ huynh".*\n`;
+      return md;
+    }
+
+    // -1.4. Quy định Đồng phục & Trang phục sinh hoạt
+    if (matchAny("dong phuc", "trang phuc", "quan ao", "ao trang", "khan quang", "mac gi")) {
+      let md = `### 👕 Quy định Đồng phục Sinh hoạt Gia Đình Hưng Đạo Trung Nam\n\n`;
+      md += `Để tạo tính kỷ luật và vẻ đẹp trang nghiêm trong phong trào Thiếu Nhi Thánh Thể, các em mặc đồng phục như sau:\n\n`;
+      md += `* 👕 **Áo:** Áo sơ mi trắng ngắn tay, có thêu phù hiệu Phong trào TNTT trên ngực áo bên trái.\n`;
+      md += `* 👖 **Quần / Váy:** Quần tây màu xanh đen sẫm (hoặc váy xếp ly xanh đen qua gối đối với nữ).\n`;
+      md += `* 👟 **Giày / Dép:** Mang giày bata hoặc dép có quai hậu (quai cài) gọn gàng.\n`;
+      md += `* 🧣 **Khăn quàng theo cấp Ngành:**\n`;
+      md += `  - 🟢 **Ngành Đồng (6-11 tuổi):** Khăn màu xanh lá mạ viền vàng (mầm non, tươi vui, hy vọng).\n`;
+      md += `  - 🔵 **Ngành Thiếu (12-14 tuổi):** Khăn màu xanh biển viền vàng (trời cao biển rộng, lý tưởng trong sáng).\n`;
+      md += `  - 🟡 **Ngành Thanh (15-18 tuổi):** Khăn màu vàng nghệ viền đỏ (ánh sáng đức tin và tinh thần dấn thân).\n\n`;
+      md += `💡 *Các em đoàn sinh mới gia nhập chưa kịp chuẩn bị đồng phục vẫn có thể mặc áo trắng quần sẫm màu bình thường đến sinh hoạt cùng các bạn!*\n`;
+      return md;
+    }
+
+    // -1.3. Giờ giấc sinh hoạt Chúa Nhật
+    if (matchAny("may gio", "gio sinh hoat", "khi nao hoc", "gio giac", "lich sinh hoat") || (matchAny("chua nhat") && matchAny("may gio", "khi nao", "hoc may gio", "gio"))) {
+      let md = `### 🕐 Thời gian & Địa điểm Sinh hoạt Hàng Tuần\n\n`;
+      md += `* 📅 **Ngày sinh hoạt:** **Chiều Chúa Nhật hàng tuần**.\n`;
+      md += `* ⏰ **Khung giờ chuẩn:**\n`;
+      md += `  - **14h15 - 14h30:** Tập trung điểm danh, ổn định hàng ngũ các đội.\n`;
+      md += `  - **14h30 - 15h00:** Nghi thức chào cờ phong trào, câu chuyện dưới cờ.\n`;
+      md += `  - **15h00 - 16h00:** Học giáo lý theo từng cấp Ngành (Đồng, Thiếu, Thanh).\n`;
+      md += `  - **16h00 - 16h45:** Sinh hoạt kỹ năng, trò chơi hàng đội, tập nghi thức, ca múa.\n`;
+      md += `  - **16h45 - 17h00:** Hạ cờ, dặn dò phụ huynh đón các em.\n`;
+      md += `* 📍 **Địa điểm:** Khuôn viên nhà sinh hoạt Giáo họ Trung Nam.\n\n`;
+      md += `💡 *Quý phụ huynh có thể đưa đón các em vào lúc 14h15 và 17h00 tại cổng nhà thờ.*\n`;
+      return md;
+    }
+
+    // -1.2. Cách thức Đăng ký & Học phí
+    if (matchAny("dang ky", "gia nhap", "vao hoc", "nhap doan", "xin vao", "hoc phi", "bao nhieu tien", "dong tien")) {
+      let md = `### 📝 Hướng dẫn Đăng ký Gia nhập & Học phí\n\n`;
+      md += `Gia Đình Hưng Đạo Trung Nam luôn hân hoan chào đón tất cả các em thanh thiếu nhi tham gia sinh hoạt!\n\n`;
+      md += `* 💰 **Học phí:** **HOÀN TOÀN MIỄN PHÍ 100%**.\n`;
+      md += `* 👶 **Độ tuổi tiếp nhận:** Các em từ **6 tuổi đến 18 tuổi** (từ Lớp 1 đến Lớp 12).\n`;
+      md += `* 📋 **Cách thức đăng ký rất đơn giản:**\n`;
+      md += `  1. Phụ huynh dẫn bé đến trực tiếp phòng sinh hoạt Giáo họ Trung Nam vào đầu giờ chiều Chúa Nhật (khoảng 14h15).\n`;
+      md += `  2. Gặp trực tiếp Ban Trưởng hoặc Trưởng phụ trách Ngành theo độ tuổi của bé để nhận phiếu thông tin đoàn sinh.\n`;
+      md += `  3. Bé sẽ được xếp vào Đội nhóm phù hợp ngay trong buổi đầu tiên để làm quen với các bạn.\n\n`;
+      md += `💡 *Quý phụ huynh có thể gọi trước cho Trưởng phụ trách ngành để được chuẩn bị chu đáo nhất.*\n`;
+      return md;
+    }
+
+    // -1.1. Cắm trại & Hoạt động dã ngoại
+    if (matchAny("cam trai", "da ngoai", "trai he", "lua trai", "ngoai troi")) {
+      let md = `### ⛺ Hoạt động Cắm trại & Dã ngoại Hưng Đạo\n\n`;
+      md += `Bên cạnh các buổi sinh hoạt hàng tuần, Gia Đình Hưng Đạo Trung Nam thường xuyên tổ chức các hoạt động ngoại khóa sôi nổi:\n\n`;
+      md += `* 🏕️ **Kỳ Trại Truyền thống Hưng Đạo:** Tổ chức hàng năm vào dịp hè hoặc ngày lễ lớn, gồm trò chơi lớn (mật thư, dấu đường), dựng lều trại, thi nấu ăn dã chiến và đêm lửa trại.\n`;
+      md += `* 🏃 **Sinh hoạt kỹ năng sống:** Huấn luyện nút dây ứng dụng, la bàn định vị, sơ cấp cứu, kỹ năng sinh tồn và làm việc nhóm.\n`;
+      md += `* 🤝 **Công tác bác ái & Môi trường:** Các chuyến đi thăm mái ấm, dọn dẹp vệ sinh khuôn viên giáo họ và hành hương dã ngoại.\n\n`;
+      md += `💡 *Có thể hỏi thêm: "Thống kê các hoạt động cắm trại dã ngoại gần đây" để xem số liệu tham gia cụ thể.*\n`;
+      return md;
+    }
+
+    // -1.05. Danh bạ số điện thoại liên hệ Ban Trưởng
+    if (matchAny("sdt", "so dien thoai", "lien he", "gap ai", "truong doan", "ai phu trach")) {
+      let md = `### 📞 Danh bạ Liên hệ Đại diện Ban Trưởng\n\n`;
+      md += `Kính gửi Quý phụ huynh và các Trưởng, danh bạ đại diện chính thức gồm có:\n\n`;
+      md += `| Chức danh | Họ và tên | Ngành phụ trách | Email liên hệ |\n`;
+      md += `| :--- | :--- | :--- | :--- |\n`;
+      md += `| ⭐ **Trưởng ban hướng dẫn** | Phạm Ngọc Duy | Toàn Gia Đình Hưng Đạo | \`phamtuananh24@gmail.com\` |\n`;
+      md += `| 🟢 **Vườn Trưởng** | Đoàn Thị Hoàng Trâm | Ngành Đồng (6-11 tuổi) | \`phuquocvuondong@gmail.com\` |\n`;
+      md += `| 🔵 **Thiếu Trưởng** | Nguyễn Đăng Đạo | Ngành Thiếu (12-14 tuổi) | \`nguyendangdao35@gmail.com\` |\n`;
+      md += `| 🔴 **Thanh Trưởng** | Nguyễn Anh Nhật Vũ | Ngành Thanh (15-18 tuổi) | \`nguyenanhnhatvu@gmail.com\` |\n\n`;
+      md += `💡 *Quý vị có thể liên hệ vào các ngày trong tuần hoặc trực tiếp gặp vào chiều Chúa Nhật tại Giáo họ Trung Nam.*\n`;
+      return md;
+    }
+
+    // 0.0. Tra cứu danh sách đoàn sinh theo năm sinh / năm tham gia (ví dụ: 2012, sinh năm 2012, các bạn 2012...)
+    const yearMatches = message.match(/\b(19\d\d|20\d\d)\b/);
+    if (yearMatches) {
+      const targetYear = parseInt(yearMatches[1], 10);
+      const isListQuery =
+        q.includes("danh sách") ||
+        q.includes("danh sach") ||
+        q.includes("đoàn sinh") ||
+        q.includes("doan sinh") ||
+        q.includes("các bạn") ||
+        q.includes("cac ban") ||
+        q.includes("mấy đứa") ||
+        q.includes("sinh năm") ||
+        q.includes("sinh nam") ||
+        q.includes("năm sinh") ||
+        q.includes("nam sinh") ||
+        q.includes("tên") ||
+        q.includes("ten") ||
+        q.includes("ai");
+
+      if (isListQuery) {
+        const where = { active: true };
+        if (branch !== "all") where.branch = branch;
+
+        const allActive = await prisma.member.findMany({
+          where,
+          orderBy: [{ branch: "asc" }, { name: "asc" }],
+        });
+
+        // 1. Khớp theo năm sinh (ưu tiên số 1)
+        const bornMembers = allActive.filter((m) => m.birthDate && new Date(m.birthDate).getFullYear() === targetYear);
+        // 2. Khớp theo năm tham gia (startYear)
+        const joinedMembers = allActive.filter((m) => m.startYear === targetYear);
+
+        if (bornMembers.length > 0 || joinedMembers.length > 0) {
+          const displayMembers = bornMembers.length > 0 ? bornMembers : joinedMembers;
+          const matchType = bornMembers.length > 0 ? `sinh năm ${targetYear}` : `gia nhập năm ${targetYear}`;
+
+          let md = `### 📋 Danh sách Đoàn sinh ${matchType} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch})\n\n`;
+          md += `Hệ thống ghi nhận **${displayMembers.length} đoàn sinh** ${matchType}:\n\n`;
+          md += `| STT | Mã ĐS | Họ và tên | Ngày sinh (Tuổi) | Giới tính | Ngành | Chi đoàn/Đội | Xã đạo/Xã đạo | SĐT Liên hệ | Phụ huynh |\n`;
+          md += `| :---: | :---: | :--- | :---: | :---: | :---: | :--- | :--- | :--- | :--- |\n`;
+
+          displayMembers.forEach((m, idx) => {
+            const bDate = m.birthDate ? new Date(m.birthDate) : null;
+            const bYear = bDate ? bDate.getFullYear() : null;
+            const age = bYear ? `${currentYear - bYear} tuổi` : "—";
+            const formattedDate = bDate ? `${String(bDate.getDate()).padStart(2, "0")}/${String(bDate.getMonth() + 1).padStart(2, "0")}/${bYear}` : "*(Chưa cập nhật)*";
+            const parents = [m.fatherName && m.fatherName !== "—" ? `Cha: ${m.fatherName}` : "", m.motherName && m.motherName !== "—" ? `Mẹ: ${m.motherName}` : ""].filter(Boolean).join(", ") || "—";
+
+            md += `| ${idx + 1} | **${m.id}** | **${m.name}** | ${formattedDate} (${age}) | ${m.gender || "—"} | ${m.branch || "—"} | ${m.group || "Chưa xếp đội"} | ${m.parish || "—"} | \`${m.contact && m.contact !== "—" ? m.contact : "Chưa có SĐT"}\` | ${parents} |\n`;
+          });
+
+          if (bornMembers.length > 0 && joinedMembers.length > 0 && bornMembers.length !== joinedMembers.length) {
+            md += `\n💡 *Ghi chú thêm: Có ${joinedMembers.length} đoàn sinh có năm gia nhập (startYear) là ${targetYear}.*\n`;
+          }
+          return md;
+        }
+      }
+    }
+
+    // -1. Giới thiệu tổng quan tổ chức & học phí (dành cho người mới / phụ huynh)
+    if (q.includes("là gì") || q.includes("học phí") || q.includes("câu lạc bộ") || q.includes("dạy cái gì") || q.includes("ở đâu") && (q.includes("trung nam") || q.includes("đây"))) {
+      let md = `### 🕊️ Giới thiệu về Gia Đình Hưng Đạo Trung Nam\n\n`;
+      md += `**Gia Đình Hưng Đạo Trung Nam** là đơn vị sinh hoạt thuộc phong trào **Thiếu Nhi Thánh Thể** (Giáo họ Trung Nam - Xã đạo Phước Mỹ/Phước Nguyên/Phước Minh).\n\n`;
+      md += `* **Mục đích:** Giáo dục đức tin, nhân bản, kỹ năng sống và tinh thần kỷ luật cho các em thanh thiếu nhi.\n`;
+      md += `* **Thời gian sinh hoạt:** Chiều Chúa Nhật hàng tuần (từ 14h30 đến 17h00) (tập hợp chào cờ, học giáo lý, sinh hoạt hàng đội, trò chơi kỹ năng).\n`;
+      md += `* **Học phí:** **Hoàn toàn MIỄN PHÍ**. Phong trào hoạt động trên tinh thần thiện nguyện của Ban Trưởng và sự bảo trợ của Giáo họ/Giáo xứ.\n`;
+      md += `* **Cơ cấu 3 Ngành:**\n`;
+      md += `  - 🟢 **Ngành Đồng (6 - 11 tuổi):** Vườn trưởng Đoàn Thị Hoàng Trâm phụ trách.\n`;
+      md += `  - 🔵 **Ngành Thiếu (12 - 14 tuổi):** Thiếu Trưởng Nguyễn Đăng Đạo phụ trách.\n`;
+      md += `  - 🔴 **Ngành Thanh (15 - 18 tuổi):** Thanh Trưởng Nguyễn Anh Nhật Vũ phụ trách.\n\n`;
+      md += `💡 *Quý phụ huynh hoặc Trưởng có thể hỏi thêm: "Danh bạ liên hệ các trưởng", "Danh sách đoàn sinh theo năm sinh", hoặc "Lịch sinh hoạt tuần này".*`;
+      return md;
+    }
+
+    // -0.5. Tư vấn độ tuổi & lớp sinh hoạt (dành cho phụ huynh hỏi tuổi con)
+    const ageMatch = q.match(/\b(\d{1,2})\s*(tuổi|tuoi|t)\b/i) || message.match(/\b(\d{1,2})\s*(tuổi|tuoi|t)\b/i);
+    if (ageMatch && (matchAny("vao lop", "hoc lop", "nganh nao", "be", "con", "ban", "tuoi", "sinh hoat"))) {
+      const askAge = parseInt(ageMatch[1], 10);
+      let targetBranch = "Đồng";
+      let branchLeader = "Vườn trưởng Đoàn Thị Hoàng Trâm (phuquocvuondong@gmail.com)";
+      if (askAge >= 12 && askAge <= 14) {
+        targetBranch = "Thiếu";
+        branchLeader = "Thiếu Trưởng Nguyễn Đăng Đạo (nguyendangdao35@gmail.com)";
+      } else if (askAge >= 15) {
+        targetBranch = "Thanh";
+        branchLeader = "Thanh Trưởng Nguyễn Anh Nhật Vũ (nguyenanhnhatvu@gmail.com)";
+      }
+
+      const currentYear = new Date().getFullYear();
+      const birthYearApprox = currentYear - askAge;
+
+      const peers = await prisma.member.findMany({
+        where: {
+          active: true,
+          birthDate: { not: null },
+        },
+        select: { id: true, name: true, branch: true, parish: true, birthDate: true },
+      });
+
+      const matchedPeers = peers.filter((m) => {
+        const y = new Date(m.birthDate).getFullYear();
+        return (currentYear - y) === askAge;
+      });
+
+      let md = `### 👶 Tư vấn Xếp Ngành theo Độ Tuổi (${askAge} tuổi)\n\n`;
+      md += `Dạ, bé **${askAge} tuổi** (sinh khoảng năm **${birthYearApprox}**) sẽ tham gia sinh hoạt tại **Ngành ${targetBranch}**.\n\n`;
+      md += `* **Độ tuổi chuẩn:** Ngành ${targetBranch} dành cho các em từ ${targetBranch === "Đồng" ? "6 đến 11" : targetBranch === "Thiếu" ? "12 đến 14" : "15 đến 18"} tuổi.\n`;
+      md += `* **Người phụ trách Ngành:** ${branchLeader}.\n`;
+      md += `* **Bạn bè cùng ${askAge} tuổi đang sinh hoạt:** Hiện có **${matchedPeers.length} bạn** cùng ${askAge} tuổi trong hệ thống:\n\n`;
+
+      if (matchedPeers.length > 0) {
+        md += `| STT | Họ và tên | Ngành | Xã đạo / Khu vực |\n`;
+        md += `| :---: | :--- | :---: | :--- |\n`;
+        matchedPeers.forEach((p, idx) => {
+          md += `| ${idx + 1} | **${p.name}** | Ngành ${p.branch} | ${p.parish || "Chưa cập nhật"} |\n`;
+        });
+      } else {
+        md += `*(Hiện chưa có bạn nào cùng chính xác ${askAge} tuổi, nhưng các bạn chênh lệch 1 tuổi trong Ngành sinh hoạt rất hòa đồng!)*\n`;
+      }
+      return md;
+    }
+
     // 0. Sinh nhật theo Quý / Tháng
-    if (q.includes("sinh nhật") || q.includes("ngày sinh") || q.includes("tuổi mới") || q.includes("sinh tháng")) {
+    if (matchAny("sinh nhat", "ngay sinh", "tuoi moi", "sinh thang")) {
       const bData = await dashboardService.getQuarterlyBirthdays({ role: "admin" }, { year: currentYear, quarter: currentQuarter, branch });
       const members = bData?.members || [];
       if (members.length === 0) {
-        return `Hiện chưa có thông tin ai có sinh nhật trong Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`}).`;
+        return `Hiện chưa có thông tin ai có sinh nhật trong Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch}).`;
       }
-      let md = `### 🎂 Danh sách Sinh nhật trong Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})\n\n`;
+      let md = `### 🎂 Danh sách Sinh nhật trong Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch})\n\n`;
       md += `Hệ thống ghi nhận **${members.length} thành viên** (gồm Đoàn sinh và Trưởng) đón tuổi mới trong quý này:\n\n`;
       md += `| Ngày sinh | Họ và tên | Vai trò | Ngành | Chi đoàn/Đội | Xã đạo/Xã đạo | Tuổi mới |\n`;
       md += `| :---: | :--- | :--- | :--- | :--- | :--- | :---: |\n`;
       members.forEach((m) => {
         const roleLabel = m.isLeader ? `⭐ **${m.role || "Trưởng"}**` : "Đoàn sinh";
-        md += `| **${m.formattedDate}** | **${m.fullName}** | ${roleLabel} | ${m.branch ? `Ngành ${m.branch}` : "—"} | ${m.group || "—"} | ${m.parish || "—"} | ${m.age ? `${m.age} tuổi` : "—"} |\n`;
+        md += `| **${m.formattedDate}** | **${m.fullName}** | ${roleLabel} | ${m.branch ? "Ngành " + m.branch : "—"} | ${m.group || "—"} | ${m.parish || "—"} | ${m.age ? `${m.age} tuổi` : "—"} |\n`;
       });
       return md;
     }
@@ -2358,11 +3489,11 @@ async function generateFallbackResponse(message, userContext) {
         .sort((a, b) => b.count - a.count);
 
       if (sorted.length === 0) {
-        return `Hiện chưa có thông tin dữ liệu về ${groupTitle.toLowerCase()} của đoàn sinh (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`}).`;
+        return `Hiện chưa có thông tin dữ liệu về ${groupTitle.toLowerCase()} của đoàn sinh (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch}).`;
       }
 
       const top1 = sorted[0];
-      let md = `### 📍 Thống kê phân bố Đoàn sinh theo ${groupTitle} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})\n\n`;
+      let md = `### 📍 Thống kê phân bố Đoàn sinh theo ${groupTitle} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch})\n\n`;
       md += `Đoàn sinh tập trung nhiều nhất tại **${top1.name}** với **${top1.count} em** (${top1.pct}% trên tổng số ${total} đoàn sinh).\n\n`;
       md += `| ${groupTitle} | Số lượng | Tỷ lệ |\n`;
       md += `| :--- | :---: | :---: |\n`;
@@ -2443,13 +3574,13 @@ async function generateFallbackResponse(message, userContext) {
     }
 
     // 3. Tra cứu nguy cơ / cảnh báo
-    if (q.includes("cảnh báo") || q.includes("nguy cơ") || q.includes("vắng nhiều") || q.includes("yếu") || q.includes("kém") || q.includes("nghỉ")) {
+    if (matchAny("canh bao", "nguy co", "vang nhieu", "nghi nhieu", "hoc luc yeu", "kem")) {
       const risks = await executiveDashboardService.getExecutiveRiskMembers(userContext, { year: currentYear, quarter: currentQuarter, branch });
       if (!risks || risks.length === 0) {
-        return `### 🛡️ Tình hình Đoàn sinh diện Cảnh báo (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})\n\nHiện tại **không có đoàn sinh nào** thuộc diện cảnh báo nguy cơ nghiêm trọng trong phạm vi quản lý của bạn. Tỷ lệ chuyên cần và điểm số duy trì ở mức an toàn! 🎉`;
+        return `### 🛡️ Tình hình Đoàn sinh diện Cảnh báo (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch})\n\nHiện tại **không có đoàn sinh nào** thuộc diện cảnh báo nguy cơ nghiêm trọng trong phạm vi quản lý của bạn. Tỷ lệ chuyên cần và điểm số duy trì ở mức an toàn! 🎉`;
       }
       const topRisks = risks.slice(0, 5);
-      let md = `### ⚠️ Danh sách Đoàn sinh cần chú ý (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})\n\n`;
+      let md = `### ⚠️ Danh sách Đoàn sinh cần chú ý (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch})\n\n`;
       md += `Hệ thống ghi nhận **${risks.length} đoàn sinh** có dấu hiệu vắng học hoặc điểm số giảm sút:\n\n`;
       md += `| Đoàn sinh | Ngành | Điểm TB | Vắng quy đổi | Lý do chính |\n`;
       md += `| :--- | :--- | :---: | :---: | :--- |\n`;
@@ -2461,12 +3592,12 @@ async function generateFallbackResponse(message, userContext) {
     }
 
     // 4. Tra cứu Top điểm / Thi đua
-    if (q.includes("top") || q.includes("cao nhất") || q.includes("xuất sắc") || q.includes("dẫn đầu") || q.includes("thứ hạng") || q.includes("điểm cao")) {
+    if (matchAny("top", "cao nhat", "xuat sac", "dan dau", "thu hang", "diem cao")) {
       const topList = await executiveDashboardService.getExecutiveTopMembers(userContext, { year: currentYear, quarter: currentQuarter, branch, sortBy: "overall", limit: 5 });
       if (!topList || topList.length === 0) {
-        return `Chưa có dữ liệu xếp hạng thi đua cho Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`}).`;
+        return `Chưa có dữ liệu xếp hạng thi đua cho Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch}).`;
       }
-      let md = `### 🏆 Top 5 Đoàn sinh xuất sắc nhất (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})\n\n`;
+      let md = `### 🏆 Top 5 Đoàn sinh xuất sắc nhất (Quý ${currentQuarter}/${currentYear} - ${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch})\n\n`;
       md += `| Hạng | Đoàn sinh | Ngành | Tổng điểm | Chuyên cần | Xếp loại |\n`;
       md += `| :---: | :--- | :--- | :---: | :---: | :--- |\n`;
       topList.forEach((m, idx) => {
@@ -2478,10 +3609,10 @@ async function generateFallbackResponse(message, userContext) {
     }
 
     // 5. Tra cứu Xu hướng Chuyên cần & Điểm danh các buổi gần đây
-    if (q.includes("chuyên cần") || q.includes("điểm danh") || q.includes("vắng") || q.includes("xu hướng") || q.includes("buổi sinh hoạt")) {
+    if (matchAny("chuyen can", "diem danh", "vang", "xu huong", "buoi sinh hoat")) {
       const trend = await executiveDashboardService.getExecutiveAttendanceTrend(userContext, { year: currentYear, quarter: currentQuarter, branch });
       if (trend?.history && trend.history.length > 0) {
-        let md = `### 📈 Xu hướng Chuyên cần các buổi sinh hoạt gần nhất (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})\n\n`;
+        let md = `### 📈 Xu hướng Chuyên cần các buổi sinh hoạt gần nhất (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch})\n\n`;
         md += `Tỷ lệ chuyên cần trung bình đạt **${trend.averageRate || 0}%**:\n\n`;
         md += `| Buổi sinh hoạt | Tỷ lệ hiện diện | Số vắng |\n`;
         md += `| :--- | :---: | :---: |\n`;
@@ -2493,7 +3624,7 @@ async function generateFallbackResponse(message, userContext) {
     }
 
     // 6. Phân tích Điểm số Môn học
-    if (q.includes("môn học") || q.includes("hệ số") || q.includes("điểm thi") || q.includes("giáo lý") || q.includes("kinh thánh")) {
+    if (matchAny("mon hoc", "he so", "diem thi", "giao ly", "kinh thanh")) {
       const categories = await prisma.gradeCategory.findMany({ where: { active: true } });
       let md = `### 📚 Cấu hình Môn học & Hệ số tính điểm\n\n`;
       md += `| Môn học | Hệ số (Trọng số) |\n`;
@@ -2505,21 +3636,21 @@ async function generateFallbackResponse(message, userContext) {
     }
 
     // 7. Danh bạ trưởng
-    if (q.includes("trưởng") || q.includes("bqt") || q.includes("ban quản trị") || q.includes("danh bạ") || q.includes("ai phụ trách")) {
+    if (matchAny("truong", "bqt", "ban quan tri", "danh ba", "ai phu trach")) {
       const users = await prisma.user.findMany({ where: { active: true }, select: { name: true, role: true, branch: true, email: true } });
       let md = `### 👥 Danh bạ Ban Quản Trị & trưởng\n\n`;
       md += `| Họ tên | Vai trò | Ngành phụ trách | Email |\n`;
       md += `| :--- | :--- | :--- | :--- |\n`;
       users.forEach((u) => {
-        md += `| **${u.name}** | ${u.role === "admin" ? "BQT (Admin)" : "trưởng"} | ${u.branch ? `Ngành ${u.branch}` : "Toàn Gia Đình Hưng Đạo Trung Nam"} | \`${u.email}\` |\n`;
+        md += `| **${u.name}** | ${u.role === "admin" ? "BQT (Admin)" : "trưởng"} | ${u.branch ? "Ngành " + u.branch : "Toàn Gia Đình Hưng Đạo Trung Nam"} | \`${u.email}\` |\n`;
       });
       return md;
     }
 
     // 8. Tóm tắt / Tổng quan Quý
-    if (q.includes("tổng quan") || q.includes("tóm tắt") || q.includes("tình hình") || q.includes("báo cáo") || q.includes("quý này") || q.includes("thống kê") || q.includes("bao nhiêu")) {
+    if (matchAny("tong quan", "tom tat", "tinh hinh", "bao cao", "quy nay", "thong ke", "bao nhieu")) {
       const overview = await executiveDashboardService.getExecutiveOverview(userContext, { year: currentYear, quarter: currentQuarter, branch });
-      return `### 📊 Báo cáo Tổng quan Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : `Ngành ${branch}`})
+      return `### 📊 Báo cáo Tổng quan Quý ${currentQuarter}/${currentYear} (${branch === "all" ? "Toàn Gia Đình Hưng Đạo Trung Nam" : "Ngành " + branch})
 
 - **Tổng số Đoàn sinh:** **${overview?.totalMembers?.value || 0}** em (${overview?.totalMembers?.diff >= 0 ? "+" : ""}${overview?.totalMembers?.diff || 0} so với quý trước)
 - **Tỷ lệ Chuyên cần trung bình:** **${overview?.attendanceRate?.value || 0}%** (${overview?.attendanceRate?.diff >= 0 ? "+" : ""}${overview?.attendanceRate?.diff || 0}%)
@@ -2530,22 +3661,27 @@ async function generateFallbackResponse(message, userContext) {
 💡 *Bạn có thể hỏi tôi chi tiết hơn như: "Top 5 em điểm cao nhất", "Ai đang vắng nhiều?", "Đoàn sinh ở xã đạo nào nhiều nhất?", "Tìm hồ sơ em Vy", hoặc "So sánh chuyên cần các ngành".*`;
     }
 
-    // 9. Trường hợp không nhận diện được ý định rõ ràng: Trả về bảng hướng dẫn các câu hỏi mẫu
-    return `Chào bạn! Tôi là **Trợ lý AI Phân tích Dữ liệu Toàn diện** của Trung Nam Hub.
+    // 9. Trường hợp không nhận diện được ý định rõ ràng: Trả về hướng dẫn thân thiện và gợi ý cụ thể
+    return `### 👋 Dạ, Trợ lý Đồng hành Trung Nam xin chào Trưởng & Quý phụ huynh!
 
-Tôi có thể hỗ trợ bạn tra cứu mọi thông tin trong hệ thống:
-- 📍 **Phân bố & Địa bàn:** *"Đoàn sinh ở xã đạo nào nhiều nhất?"*, *"Thống kê theo Họ Đạo/giới tính"*
-- 🔍 **Tra cứu Đoàn sinh:** *"Tìm thông tin em Trúc Vy"*, *"Hồ sơ em Dũng"*
-- 🏆 **Thi đua & Điểm số:** *"Top 5 đoàn sinh xuất sắc"*, *"Môn nào điểm trung bình cao nhất?"*
-- ⚠️ **Cảnh báo Nguy cơ:** *"Có em nào vắng nhiều không?"*, *"Danh sách đoàn sinh diện cảnh báo"*
-- 📈 **Chuyên cần & Buổi học:** *"Chi tiết điểm danh buổi sinh hoạt gần nhất"*, *"Xu hướng chuyên cần"*
-- 👥 **Đội ngũ trưởng:** *"Danh bạ trưởng Ngành Thiếu"*, *"Ai phụ trách Ngành Đồng?"*
-- 📊 **Báo cáo Tổng quan:** *"Tóm tắt tình hình Quý này"*
+Em có thể giúp tra cứu nhanh mọi thông tin sinh hoạt bằng lời nói thông thường hàng ngày:
 
-Bạn muốn tra cứu thông tin nào?`;
+* 👨‍👩‍👧 **Dành cho Phụ huynh & Người mới:**
+  - *"Bé 8 tuổi học lớp nào, ai phụ trách?"*
+  - *"Chúa Nhật sinh hoạt mấy giờ và mặc đồng phục gì?"*
+  - *"Học phí thế nào và làm sao để đăng ký?"*
+  - *"Xin phép nghỉ học cho con"*
+  - *"Số điện thoại Trưởng phụ trách các ngành"*
+* 👔 **Dành cho Ban Trưởng:**
+  - *"Danh sách các em vắng nhiều cần thăm hỏi"*
+  - *"Ai có sinh nhật trong 30 ngày tới?"*
+  - *"Tóm tắt tình hình các Ngành Quý này"*
+  - *"Danh bạ số điện thoại khẩn cấp phụ huynh"*
+
+💡 *Quý vị chỉ cần bấm vào các câu hỏi gợi ý có sẵn hoặc gõ câu hỏi bất kỳ vào ô chat bên dưới nhé!*`;
   } catch (err) {
     console.error("Error in generateFallbackResponse:", err);
-    return `Xin chào! Tôi là Trợ lý AI Phân tích Dữ liệu của Trung Nam Hub. Bạn có thể hỏi tôi về tình hình chuyên cần, điểm số thi đua, danh sách đoàn sinh xuất sắc hoặc các em thuộc diện cảnh báo trong Quý ${currentQuarter}/${currentYear}.`;
+    return `Dạ, Trợ lý Đồng hành Trung Nam xin chào! Quý vị có thể hỏi về giờ sinh hoạt, đồng phục, đăng ký đoàn sinh mới, tình hình chuyên cần hoặc danh bạ các Trưởng phụ trách nhé.`;
   }
 }
 
@@ -2585,6 +3721,57 @@ function formatToolResultToMarkdown(toolName, result) {
   const d = result.data;
 
   switch (toolName) {
+    case "get_consecutive_absent_alerts": {
+      const alerts = d.alertMembers || d.alerts || [];
+      const count = d.count || alerts.length;
+      if (count === 0) {
+        return "### 🛡️ Cảnh báo Vắng Chuyên cần\n\nHệ thống không ghi nhận đoàn sinh nào vắng liên tiếp quá ngưỡng quy định gần đây. Tình hình chuyên cần ổn định!";
+      }
+
+      let md = `### ⚠️ Danh sách Đoàn sinh Vắng liên tiếp (${count} em)\n\n`;
+      md += `Dưới đây là các em có nguy cơ bỏ sinh hoạt hoặc vắng nhiều buổi gần đây nhất cần liên hệ gia đình:\n\n`;
+      md += `| STT | Mã ĐS | Họ và tên | Ngành | Chi đoàn/Đội | Xã đạo | Số buổi vắng | SĐT Ba Mẹ |\n`;
+      md += `| :---: | :---: | :--- | :---: | :---: | :---: | :---: | :--- |\n`;
+      alerts.forEach((a, idx) => {
+        const m = a.member || a;
+        md += `| ${idx + 1} | **${m.id || "—"}** | **${m.name}** | ${m.branch || "—"} | ${m.group || "Chưa xếp"} | ${m.parish || "—"} | **${a.consecutiveAbsents || a.absentCount || 2} buổi** | \`${m.contact || "Chưa có SĐT"}\` |\n`;
+      });
+      return md;
+    }
+
+    case "get_members_list": {
+      const members = d.members || [];
+      const f = d.filters || {};
+      const total = d.totalFound || members.length;
+
+      if (total === 0) {
+        return d.note || "🔍 Không tìm thấy đoàn sinh nào thỏa mãn điều kiện tra cứu.";
+      }
+
+      let title = "### 📋 Danh sách Đoàn sinh";
+      if (f.birthYear) title += ` sinh năm ${f.birthYear}`;
+      if (f.startYear) title += ` gia nhập năm ${f.startYear}`;
+      if (f.branch && f.branch !== "all") title += ` (Ngành ${f.branch})`;
+      if (f.group) title += ` - Chi đoàn/Đội ${f.group}`;
+      if (f.parish) title += ` - Xã đạo ${f.parish}`;
+      if (f.gender) title += ` - Giới tính ${f.gender}`;
+
+      let md = `${title}\n\n`;
+      md += `Hệ thống ghi nhận **${total} đoàn sinh** phù hợp với yêu cầu:\n\n`;
+      md += `| STT | Mã ĐS | Họ và tên | Ngày sinh (Tuổi) | Giới tính | Ngành | Chi đoàn/Đội | Xã đạo/Xã đạo | SĐT Liên hệ | Phụ huynh |\n`;
+      md += `| :---: | :---: | :--- | :---: | :---: | :---: | :--- | :--- | :--- | :--- |\n`;
+
+      members.forEach((m) => {
+        const parents = [m.fatherName && m.fatherName !== "—" ? `Cha: ${m.fatherName}` : "", m.motherName && m.motherName !== "—" ? `Mẹ: ${m.motherName}` : ""].filter(Boolean).join(", ") || "—";
+        md += `| ${m.stt} | **${m.id}** | **${m.name}** | ${m.birthDate} (${m.age}) | ${m.gender} | ${m.branch} | ${m.group} | ${m.parish} | \`${m.contact}\` | ${parents} |\n`;
+      });
+
+      if (total > members.length) {
+        md += `\n*(Đang hiển thị ${members.length}/${total} đoàn sinh. Trưởng có thể lọc chi tiết hơn theo ngành hoặc đội nếu cần)*\n`;
+      }
+      return md;
+    }
+
     case "search_member_profile": {
       const members = d.members || [];
       const leaders = d.leaders || [];
@@ -2662,7 +3849,7 @@ function formatToolResultToMarkdown(toolName, result) {
         const name = b.fullName || b.name;
         const formattedDate = b.formattedDate || b.birthDate;
         const roleLabel = b.isLeader ? `⭐ **${b.role || "Trưởng"}**` : "Đoàn sinh";
-        md += `| **${formattedDate}** | **${name}** | ${roleLabel} | ${b.branch ? `Ngành ${b.branch}` : "—"} | ${b.group || "—"} | ${b.parish || "—"} | ${b.age ? `${b.age} tuổi` : "—"} |\n`;
+        md += `| **${formattedDate}** | **${name}** | ${roleLabel} | ${b.branch ? "Ngành " + b.branch : "—"} | ${b.group || "—"} | ${b.parish || "—"} | ${b.age ? `${b.age} tuổi` : "—"} |\n`;
       });
       return md;
     }
@@ -2731,6 +3918,543 @@ function formatToolResultToMarkdown(toolName, result) {
       } else {
         md += `*Hiện chưa có bài học nào được lên kế hoạch cho thời gian này.*\n`;
       }
+      return md;
+    }
+
+    case "get_quarter_programs": {
+      let md = `### 📖 Chương trình Sinh hoạt Quý (Quý ${d.quarter}/${d.year} - ${d.branch})\n\n`;
+      md += `- **Trạng thái kế hoạch:** **${d.curriculumStatus || "Đang thực hiện"}**\n`;
+      md += `- **Tổng số buổi sinh hoạt:** **${d.totalWeeklySessions || 0} buổi** | **Hoạt động ngoại khóa:** **${d.totalActivities || 0} sự kiện**\n\n`;
+
+      if (d.lessonSchedule && d.lessonSchedule.length > 0) {
+        md += `#### 📋 Danh sách Bài khóa / Giáo án:\n`;
+        md += `| Ngày | Tên bài học | Thời lượng | Tình trạng chuẩn bị |\n`;
+        md += `| :---: | :--- | :---: | :---: |\n`;
+        d.lessonSchedule.forEach((l) => {
+          md += `| ${l.date} | **${l.lessonText}** | ${l.duration} phút | ${l.prepared} |\n`;
+        });
+        md += `\n`;
+      }
+
+      if (d.weeklySessions && d.weeklySessions.length > 0) {
+        md += `#### 📅 Lịch các Buổi Sinh hoạt Hàng Tuần:\n`;
+        md += `| Ngày | Ngành | Sĩ số dự kiến | Hiện diện | Vắng | Tỷ lệ |\n`;
+        md += `| :---: | :--- | :---: | :---: | :---: | :---: |\n`;
+        d.weeklySessions.slice(0, 15).forEach((s) => {
+          md += `| ${s.date} | ${s.branch} | ${s.totalExpected} em | **${s.presentCount}** | ${s.absentCount} | **${s.attendanceRate}** |\n`;
+        });
+        md += `\n`;
+      }
+
+      if (d.activities && d.activities.length > 0) {
+        md += `#### ⛺ Hoạt động Phong trào trong Quý:\n`;
+        md += `| Ngày | Tên hoạt động | Người tổ chức | Số em tham gia |\n`;
+        md += `| :---: | :--- | :--- | :---: |\n`;
+        d.activities.forEach((a) => {
+          md += `| ${a.date} | **${a.name}** | ${a.organizer} | **${a.participants} em** |\n`;
+        });
+      }
+      return md;
+    }
+
+    case "get_organization_structure": {
+      let md = `### 🕊️ Cơ cấu Tổ chức ${d.organizationName || "Gia Đình Hưng Đạo Trung Nam"}\n\n`;
+      md += `- **Tổ chức trực thuộc:** ${d.movement} (${d.headquarters})\n`;
+      md += `- **Bốn tôn chỉ:** ${(d.mottos || []).join(" — ")}\n`;
+      md += `- **Tổng sĩ số active:** **${d.totalActiveMembers} đoàn sinh** | **${d.totalLeaders} Trưởng**\n\n`;
+
+      md += `#### 🟢 Cơ cấu 3 Cấp Ngành Hoạt Động:\n\n`;
+      md += `| Ngành | Độ tuổi (Cấp lớp) | Khẩu hiệu | Màu khăn quàng | Sĩ số thực tế | Trưởng phụ trách | Bổn mạng |\n`;
+      md += `| :--- | :--- | :---: | :--- | :---: | :--- | :--- |\n`;
+      (d.branchStats || []).forEach((b) => {
+        md += `| **${b.name}** | ${b.ageRange} | **${b.motto}** | ${b.scarfColor} | **${b.count} em** | ${b.leader} | ${b.patron} |\n`;
+      });
+
+      if (d.leadersList && d.leadersList.length > 0) {
+        md += `\n#### ⭐ Ban Trưởng & Ban Quản Trị:\n\n`;
+        md += `| STT | Họ và tên | Vai trò / Chức vụ | Ngành phụ trách | Email liên hệ |\n`;
+        md += `| :---: | :--- | :--- | :--- | :--- |\n`;
+        d.leadersList.forEach((l, idx) => {
+          md += `| ${idx + 1} | **${l.name}** | ${l.role || "Trưởng"} | ${l.branch ? "Ngành " + l.branch : "Ban Quản Trị"} | \`${l.email || "—"}\` |\n`;
+        });
+      }
+      return md;
+    }
+
+    case "get_attendance_analytics": {
+      let md = `### 📈 Báo cáo Chuyên cần Chi tiết (Quý ${d.quarter}/${d.year} - ${d.branch === "all" ? "Toàn Gia Đình Hưng Đạo" : "Ngành " + d.branch})\n\n`;
+      md += `- **Tỷ lệ chuyên cần trung bình:** **${d.attendanceRate}** (Điểm TB: **${d.averageScore}/10**)\n`;
+      md += `- **Tổng số buổi sinh hoạt tổ chức:** **${d.totalSessions} buổi**\n`;
+      md += `- **Sĩ số active:** **${d.totalActiveMembers} em** (Tổng lượt tham gia tối đa: ${d.totalPossibleAttendances} lượt)\n`;
+      md += `- **Lượt hiện diện thực tế (ước tính):** **${d.estimatedPresent} lượt**\n`;
+      md += `- **Vắng mặt:** Vắng không phép: **${d.absentCount} ca** | Vắng có phép: **${d.excusedCount} ca** | Đi trễ: **${d.lateCount} ca**\n\n`;
+      md += `💡 *Công thức quy chuẩn: ${d.formula}*\n`;
+      return md;
+    }
+
+    case "get_church_parish_breakdown": {
+      let md = `### 📍 Thống kê Địa bàn Đoàn sinh (${d.branch === "all" ? "Toàn Gia Đình Hưng Đạo" : "Ngành " + d.branch})\n\n`;
+      md += `Tổng số: **${d.totalMembers} đoàn sinh** đang sinh hoạt active.\n\n`;
+
+      md += `#### 🏘️ Phân bố theo Giáo họ / Xã đạo:\n\n`;
+      md += `| Giáo họ / Xã đạo | Số lượng ĐS | Tỷ lệ % |\n`;
+      md += `| :--- | :---: | :---: |\n`;
+      (d.parishRanking || []).forEach((p) => {
+        md += `| **${p.name}** | ${p.count} em | ${p.percentage} |\n`;
+      });
+
+      md += `\n#### ⛪ Phân bố theo Giáo xứ / Họ Đạo:\n\n`;
+      md += `| Giáo xứ / Họ Đạo | Số lượng ĐS | Tỷ lệ % |\n`;
+      md += `| :--- | :---: | :---: |\n`;
+      (d.churchRanking || []).forEach((c) => {
+        md += `| **${c.name}** | ${c.count} em | ${c.percentage} |\n`;
+      });
+      return md;
+    }
+
+    case "get_faqs_and_guidelines": {
+      let md = `### ❓ Hỏi đáp & Quy chế Sinh hoạt Gia Đình Hưng Đạo Trung Nam\n\n`;
+      (d.faqs || []).forEach((f, idx) => {
+        md += `#### ${idx + 1}. ${f.question}\n`;
+        md += `${f.answer}\n\n`;
+      });
+      return md;
+    }
+
+    case "get_branch_curriculum_overview": {
+      let md = `### 📚 Lộ trình Giáo lý & Mục tiêu Sư phạm 3 Ngành\n\n`;
+      (d.curriculum || []).forEach((c) => {
+        md += `#### 🔰 ${c.title} (${c.age})\n`;
+        md += `- **Khẩu hiệu:** **"${c.motto}"** | **Khăn quàng:** ${c.scarf}\n`;
+        md += `- **Trưởng phụ trách:** ${c.leader} | **Bổn mạng:** ${c.patron}\n`;
+        md += `- **Trọng tâm sư phạm:** ${c.pedagogyFocus}\n`;
+        md += `- **Các môn học & Kỹ năng chính:**\n`;
+        (c.coreSubjects || []).forEach((s) => {
+          md += `  * ${s}\n`;
+        });
+        md += `\n`;
+      });
+      return md;
+    }
+
+    case "get_liturgical_calendar_and_feasts": {
+      let md = `### 🕯️ Lịch Phụng vụ & Lễ Bổn mạng (${d.organization})\n\n`;
+      md += `| Đối tượng / Ngành | Đại lễ Bổn mạng | Ngày mừng lễ | Ý nghĩa & Tinh thần |\n`;
+      md += `| :--- | :--- | :---: | :--- |\n`;
+      (d.feasts || []).forEach((f) => {
+        md += `| **${f.scope}** | **${f.title}** | ${f.date} | ${f.meaning} |\n`;
+      });
+      return md;
+    }
+
+    case "get_camp_participants_and_activities": {
+      let md = `### ⛺ Hoạt động Cắm trại & Dã ngoại (${d.year} - ${d.branch === "all" ? "Toàn Gia Đình Hưng Đạo" : "Ngành " + d.branch})\n\n`;
+      md += `- **Tổng số sự kiện:** **${d.totalActivities} sự kiện** | **Sĩ số active:** ${d.totalActiveMembers} em\n\n`;
+
+      (d.activities || []).forEach((act) => {
+        md += `#### 🏕️ **${act.name}** (Ngày ${act.date} - Quý ${act.quarter}/${act.year})\n`;
+        md += `- **Mô tả:** ${act.description}\n`;
+        md += `- **Số em tham gia:** **${act.participantCount} em** (Tỷ lệ: **${act.participationRate}**)\n`;
+        md += `- **Theo ngành:** Đồng: ${act.branchBreakdown?.Đồng || 0} em | Thiếu: ${act.branchBreakdown?.Thiếu || 0} em | Thanh: ${act.branchBreakdown?.Thanh || 0} em\n\n`;
+
+        if (act.participantsList && act.participantsList.length > 0) {
+          md += `| STT | Mã ĐS | Họ và tên | Ngành | Chi đoàn/Đội |\n`;
+          md += `| :---: | :---: | :--- | :---: | :--- |\n`;
+          act.participantsList.forEach((p) => {
+            md += `| ${p.stt} | **${p.id}** | **${p.name}** | ${p.branch} | ${p.group} |\n`;
+          });
+          md += `\n`;
+        }
+      });
+      return md;
+    }
+
+    case "get_upcoming_birthdays_next_30_days": {
+      let md = `### 🎂 Sinh nhật Sắp tới trong 30 Ngày (${d.branch === "all" ? "Toàn đoàn" : "Ngành " + d.branch})\n\n`;
+      if (!d.birthdays || d.birthdays.length === 0) {
+        return md + "Hiện không có thành viên nào có ngày sinh nhật trong 30 ngày tới.";
+      }
+      md += `Ghi nhận **${d.totalFound} thành viên** chuẩn bị đón tuổi mới:\n\n`;
+      md += `| Họ và tên | Vai trò | Ngành | Đội | Ngày sinh | Đón tuổi mới | Còn lại | SĐT liên hệ |\n`;
+      md += `| :--- | :--- | :--- | :--- | :---: | :---: | :---: | :--- |\n`;
+      d.birthdays.forEach((b) => {
+        const days = b.daysLeft === 0 ? "🎉 **HÔM NAY**" : `**${b.daysLeft} ngày nữa**`;
+        const role = b.isLeader ? `⭐ **${b.role}**` : "Đoàn sinh";
+        md += `| **${b.name}** | ${role} | ${b.branch} | ${b.group} | ${b.birthdayThisYear} | **${b.ageTurning} tuổi** | ${days} | \`${b.contact}\` |\n`;
+      });
+      return md;
+    }
+
+    case "get_attendance_comparison_by_quarter": {
+      let md = `### 📊 So sánh Tỷ lệ Chuyên cần 4 Quý (Năm ${d.year} - ${d.branch === "all" ? "Toàn Gia Đình Hưng Đạo" : "Ngành " + d.branch})\n\n`;
+      md += `| Quý | Số buổi tổ chức | Sĩ số active | Vắng không phép | Vắng có phép | Trễ | Tỷ lệ chuyên cần |\n`;
+      md += `| :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
+      (d.quarters || []).forEach((q) => {
+        md += `| **${q.quarter}** | ${q.totalSessions} buổi | ${q.totalActiveMembers} em | ${q.absentCount} | ${q.excusedCount} | ${q.lateCount} | **${q.attendanceRate}** |\n`;
+      });
+      return md;
+    }
+
+    case "get_member_health_and_notes": {
+      let md = `### 📋 Ghi chú Sư phạm & Sức khỏe Đoàn sinh (${d.branch === "all" ? "Toàn Gia Đình Hưng Đạo" : "Ngành " + d.branch})\n\n`;
+      if (!d.members || d.members.length === 0) {
+        return md + "Không tìm thấy ghi chú đặc biệt nào phù hợp với yêu cầu tra cứu.";
+      }
+      md += `Tìm thấy **${d.totalFound} đoàn sinh** có ghi chú hoặc thông tin cần lưu ý:\n\n`;
+      d.members.forEach((m) => {
+        md += `#### 👤 **${m.name}** (Ngành ${m.branch} - Đội ${m.group})\n`;
+        md += `- **SĐT liên hệ:** \`${m.contact}\` | **Phụ huynh:** Cha: ${m.fatherName} - Mẹ: ${m.motherName}\n`;
+        if (m.notes && m.notes.length > 0) {
+          m.notes.forEach((n) => {
+            const dateStr = n.date ? " (ngày " + n.date + ")" : "";
+            md += `- 📝 **${n.type}${dateStr}:** ${n.content}\n`;
+          });
+        }
+        md += `\n`;
+      });
+      return md;
+    }
+
+    case "get_branch_performance": {
+      let md = `### 🏆 So sánh Hiệu suất & Thi đua 3 Ngành\n\n`;
+      if (Array.isArray(d)) {
+        md += `| Ngành | Sĩ số | Điểm thi đua TB | Chuyên cần TB | Hoạt động phong trào | Xếp hạng |\n`;
+        md += `| :--- | :---: | :---: | :---: | :---: | :---: |\n`;
+        d.forEach((b) => {
+          md += `| **Ngành ${b.branch || b.name}** | ${b.totalMembers || b.memberCount || "—"} | **${b.averageScore || b.score || "—"}** | ${b.attendanceRate || "—"} | ${b.activityRate || b.activityScore || "—"} | **${b.rank ? "Hạng " + b.rank : "—"}** |\n`;
+        });
+      } else if (d.branches) {
+        md += `| Ngành | Điểm thi đua TB | Chuyên cần TB | Xếp hạng |\n`;
+        md += `| :--- | :---: | :---: | :---: |\n`;
+        d.branches.forEach((b) => {
+          md += `| **Ngành ${b.name || b.branch}** | **${b.averageScore || "—"}** | ${b.attendanceRate || "—"} | ${b.rank || "—"} |\n`;
+        });
+      }
+      return md;
+    }
+
+    case "get_subject_grades_analytics": {
+      let md = `### 📊 Phân tích Điểm số theo Môn học\n\n`;
+      const subjects = d.subjects || d.categories || [];
+      if (subjects.length > 0) {
+        md += `| Môn học / Hạng mục | Hệ số (Weight) | Điểm trung bình | Điểm cao nhất | Điểm thấp nhất |\n`;
+        md += `| :--- | :---: | :---: | :---: | :---: |\n`;
+        subjects.forEach((s) => {
+          md += `| **${s.name}** | ${s.weight || 1} | **${s.averageScore || s.avgScore || "—"}** | ${s.maxScore || "—"} | ${s.minScore || "—"} |\n`;
+        });
+      }
+      return md;
+    }
+
+    case "get_activities_summary": {
+      let md = `### ⛺ Tổng kết Hoạt động & Phong trào Ngoại khóa\n\n`;
+      const acts = d.activities || [];
+      md += `Ghi nhận **${acts.length} hoạt động** trong kỳ:\n\n`;
+      md += `| Ngày | Tên hoạt động | Số ĐS tham gia | Tỷ lệ tham gia |\n`;
+      md += `| :---: | :--- | :---: | :---: |\n`;
+      acts.forEach((a) => {
+        md += `| ${a.date ? new Date(a.date).toLocaleDateString("vi-VN") : "—"} | **${a.name}** | ${a.participantCount || a.attendancesCount || 0} em | **${a.participationRate || "—"}** |\n`;
+      });
+      return md;
+    }
+
+    case "get_leaders_directory": {
+      let md = `### 👔 Danh bạ Ban Trưởng & Ban Quản Trị\n\n`;
+      const leaders = d.leaders || [];
+      md += `| STT | Họ và tên | Chức vụ | Ngành phụ trách | Email liên hệ | SĐT |\n`;
+      md += `| :---: | :--- | :--- | :--- | :--- | :--- |\n`;
+      leaders.forEach((l, idx) => {
+        md += `| ${idx + 1} | **${l.name}** | ${l.role || "Trưởng"} | ${l.branch ? "Ngành " + l.branch : "Toàn đoàn"} | \`${l.email || "—"}\` | \`${l.phone || "—"}\` |\n`;
+      });
+      return md;
+    }
+
+    case "get_emergency_contact_directory": {
+      let md = `### 🚨 Danh bạ Liên lạc Khẩn cấp\n\n`;
+      const members = d.members || [];
+      md += `| STT | Họ và tên | Ngành | Chi đoàn | Tên Cha / Mẹ | SĐT Liên hệ | Địa chỉ |\n`;
+      md += `| :---: | :--- | :---: | :---: | :--- | :--- | :--- |\n`;
+      members.forEach((m, idx) => {
+        const parents = [m.fatherName ? `Cha: ${m.fatherName}` : "", m.motherName ? `Mẹ: ${m.motherName}` : ""].filter(Boolean).join(", ") || "—";
+        md += `| ${idx + 1} | **${m.name}** | ${m.branch || "—"} | ${m.group || "—"} | ${parents} | \`${m.contact || "—"}\` | ${m.address || "—"} |\n`;
+      });
+      return md;
+    }
+
+    case "get_attendance_streak_leaderboard": {
+      let md = `### 🌟 Bảng Vàng Chuỗi Chuyên Cần Liên Tục\n\n`;
+      const streaks = d.streaks || d.members || [];
+      md += `| Hạng | Họ và tên | Ngành | Đội | Chuỗi hiện tại | Kỷ lục chuỗi |\n`;
+      md += `| :---: | :--- | :---: | :---: | :---: | :---: |\n`;
+      streaks.forEach((s, idx) => {
+        const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`;
+        md += `| ${medal} | **${s.name}** | ${s.branch} | ${s.group || "—"} | **${s.currentStreak || 0} buổi** | ${s.maxStreak || 0} buổi |\n`;
+      });
+      return md;
+    }
+
+    case "get_grade_distribution_summary": {
+      let md = `### 📈 Phổ điểm & Phân bổ Xếp loại Học lực\n\n`;
+      const dist = d.distribution || [];
+      md += `| Xếp loại | Số lượng ĐS | Tỷ lệ % | Khoảng điểm |\n`;
+      md += `| :--- | :---: | :---: | :---: |\n`;
+      dist.forEach((di) => {
+        md += `| **${di.rank || di.label}** | ${di.count} em | **${di.percentage || di.pct || "—"}** | ${di.range || "—"} |\n`;
+      });
+      return md;
+    }
+
+    case "get_upcoming_events": {
+      let md = `### 📅 Lịch Hoạt động & Sự kiện Sắp Diễn Ra\n\n`;
+      const evts = d.events || d.upcomingActivities || [];
+      if (evts.length === 0) return md + "Hiện chưa có sự kiện nào được lên lịch sắp tới.";
+      md += `| Ngày diễn ra | Tên sự kiện | Địa điểm / Mô tả |\n`;
+      md += `| :---: | :--- | :--- |\n`;
+      evts.forEach((e) => {
+        md += `| **${e.date ? new Date(e.date).toLocaleDateString("vi-VN") : "—"}** | **${e.name}** | ${e.description || "—"} |\n`;
+      });
+      return md;
+    }
+
+    case "get_member_activity_history": {
+      let md = `### 🏃 Lịch sử Tham gia Hoạt động Ngoại khóa\n\n`;
+      md += `- **Đoàn sinh:** **${d.member?.name || "—"}** (Ngành ${d.member?.branch || "—"})\n`;
+      md += `- **Tổng số hoạt động tham gia:** **${d.totalAttended || d.activities?.length || 0} sự kiện**\n\n`;
+      if (d.activities && d.activities.length > 0) {
+        md += `| Ngày | Tên hoạt động | Trạng thái | Ghi chú |\n`;
+        md += `| :---: | :--- | :---: | :--- |\n`;
+        d.activities.forEach((a) => {
+          md += `| ${a.date ? new Date(a.date).toLocaleDateString("vi-VN") : "—"} | **${a.name}** | ${a.status || "Đã tham gia"} | ${a.note || "—"} |\n`;
+        });
+      }
+      return md;
+    }
+
+    case "get_promotion_and_new_members": {
+      let md = `### 🎖️ Thống kê Đoàn sinh Mới & Lên Ngành\n\n`;
+      if (d.newMembers && d.newMembers.length > 0) {
+        md += `#### 🌟 Đoàn sinh Mới Gia Nhập (${d.newMembers.length} em):\n\n`;
+        md += `| STT | Họ và tên | Ngành | Năm gia nhập | Xã đạo |\n`;
+        md += `| :---: | :--- | :---: | :---: | :--- |\n`;
+        d.newMembers.slice(0, 20).forEach((m, idx) => {
+          md += `| ${idx + 1} | **${m.name}** | ${m.branch} | ${m.startYear || "—"} | ${m.parish || "—"} |\n`;
+        });
+      }
+      if (d.promotions && d.promotions.length > 0) {
+        md += `\n#### 🏅 Lịch sử Thăng Cấp / Lên Ngành (${d.promotions.length} lượt):\n\n`;
+        md += `| STT | Họ và tên | Ngày lên ngành | Từ ngành | Sang ngành |\n`;
+        md += `| :---: | :--- | :---: | :---: | :---: |\n`;
+        d.promotions.slice(0, 20).forEach((p, idx) => {
+          md += `| ${idx + 1} | **${p.memberName || p.name}** | ${p.date ? new Date(p.date).toLocaleDateString("vi-VN") : "—"} | ${p.fromBranch} | **${p.toBranch}** |\n`;
+        });
+      }
+      return md;
+    }
+
+    case "get_group_squad_distribution": {
+      let md = `### 👥 Cơ cấu Phân chia Chi đoàn / Đội nhóm\n\n`;
+      const groups = d.groups || d.ranking || [];
+      md += `| Chi đoàn / Đội | Ngành | Số lượng ĐS | Tỷ lệ % |\n`;
+      md += `| :--- | :---: | :---: | :---: |\n`;
+      groups.forEach((g) => {
+        md += `| **${g.name || g.group}** | ${g.branch || "—"} | **${g.count} em** | ${g.percentage || g.pct || "—"} |\n`;
+      });
+      return md;
+    }
+
+    case "get_leaders_contribution_stats": {
+      let md = `### 🏅 Thống kê Đóng góp của Ban Trưởng\n\n`;
+      const stats = d.leaders || d.stats || [];
+      md += `| Họ và tên | Chức vụ | Ngành | Thâm niên | Sự kiện tổ chức | Lượt điểm danh |\n`;
+      md += `| :--- | :--- | :--- | :---: | :---: | :---: |\n`;
+      stats.forEach((s) => {
+        md += `| **${s.name}** | ${s.role || "Trưởng"} | ${s.branch || "—"} | ${s.yearsActive ? s.yearsActive + " năm" : "—"} | ${s.activitiesCount || 0} | ${s.attendancesMarked || 0} |\n`;
+      });
+      return md;
+    }
+
+    case "get_scoring_rules_and_weights": {
+      let md = `### ⚖️ Quy chế Chấm điểm & Hệ số Môn học\n\n`;
+      const cats = d.categories || [];
+      md += `| STT | Tên môn / Hạng mục | Hệ số (Weight) | Tỷ trọng | Trạng thái |\n`;
+      md += `| :---: | :--- | :---: | :---: | :---: |\n`;
+      cats.forEach((c, idx) => {
+        md += `| ${idx + 1} | **${c.name}** | **${c.weight}** | ${c.percentage || "—"} | ${c.active ? "Đang áp dụng" : "Tạm ngưng"} |\n`;
+      });
+      return md;
+    }
+
+    case "get_yearly_summary_report": {
+      let md = `### 📑 Báo cáo Tổng kết Toàn diện Niên khóa ${d.year || ""}\n\n`;
+      md += `- **Tổng số đoàn sinh:** **${d.totalMembers || 0} em**\n`;
+      md += `- **Tổng số buổi sinh hoạt:** **${d.totalSessions || 0} buổi**\n`;
+      md += `- **Tỷ lệ chuyên cần cả năm:** **${d.attendanceRate || "—"}**\n`;
+      md += `- **Tổng số sự kiện phong trào:** **${d.totalActivities || 0} sự kiện**\n`;
+      md += `- **Số đoàn sinh lên ngành:** **${d.promotedCount || 0} em**\n`;
+      return md;
+    }
+
+    case "get_leader_to_member_ratio": {
+      let md = `### 👥 Tỷ lệ Trưởng / Đoàn sinh (Leader-to-Member Ratio)\n\n`;
+      const ratios = d.ratios || d.branches || [];
+      md += `| Ngành | Số Trưởng | Số Đoàn sinh | Tỷ lệ (1 Trưởng / X ĐS) | Đánh giá sư phạm |\n`;
+      md += `| :--- | :---: | :---: | :---: | :--- |\n`;
+      ratios.forEach((r) => {
+        md += `| **Ngành ${r.branch || r.name}** | ${r.leaderCount} | ${r.memberCount} | **1 : ${r.ratio}** | ${r.assessment || "Tốt"} |\n`;
+      });
+      return md;
+    }
+
+    case "get_system_health_and_data_summary": {
+      let md = `### 🛡️ Báo cáo Sức khỏe Dữ liệu Hệ thống\n\n`;
+      md += `- **Tổng số đoàn sinh:** ${d.totalMembers || 0} (Đang sinh hoạt: **${d.activeCount || 0}**, Tạm ngưng: ${d.inactiveCount || 0})\n`;
+      md += `- **Tỷ lệ có SĐT liên hệ:** **${d.phoneRate || d.contactRate || "—"}**\n`;
+      md += `- **Tỷ lệ có ngày sinh:** **${d.birthDateRate || "—"}**\n`;
+      md += `- **Tỷ lệ có địa chỉ:** **${d.addressRate || "—"}**\n`;
+      md += `- **Tỷ lệ có thông tin phụ huynh:** **${d.parentsRate || "—"}**\n`;
+      return md;
+    }
+
+    case "get_branch_contact_representatives": {
+      let md = `### 📞 Danh bạ Đại diện Liên lạc Chính thức các Ngành\n\n`;
+      const reps = d.representatives || d.leaders || [];
+      md += `| Vai trò đại diện | Họ và tên | Ngành phụ trách | Email | SĐT |\n`;
+      md += `| :--- | :--- | :--- | :--- | :--- |\n`;
+      reps.forEach((r) => {
+        md += `| **${r.roleTitle || r.role}** | **${r.name}** | ${r.branch} | \`${r.email || "—"}\` | \`${r.phone || "—"}\` |\n`;
+      });
+      return md;
+    }
+
+    case "get_sibling_family_groups": {
+      let md = `### 👨‍👩‍👧‍👦 Gia đình có từ 2 Anh Chị Em ruột Cùng Sinh Hoạt\n\n`;
+      const fams = d.families || [];
+      md += `Ghi nhận **${fams.length} gia đình** có nhiều con em đang sinh hoạt:\n\n`;
+      fams.forEach((f, idx) => {
+        md += `#### ${idx + 1}. Gia đình phụ huynh: **${f.parentName || f.contact || "—"}** (SĐT: \`${f.contact || "—"}\`)\n`;
+        md += `- **Địa chỉ:** ${f.address || "—"}\n`;
+        md += `- **Các con sinh hoạt:** ${(f.members || []).map(m => "**" + m.name + "** (Ngành " + m.branch + ")").join(", ")}\n\n`;
+      });
+      return md;
+    }
+
+    case "get_inactive_and_dropped_members": {
+      let md = `### ⏸️ Danh sách Đoàn sinh Tạm ngưng Sinh hoạt / Chuyển xứ\n\n`;
+      const inactives = d.members || [];
+      md += `| STT | Họ và tên | Ngành | Xã đạo | SĐT liên hệ | Ghi chú |\n`;
+      md += `| :---: | :--- | :---: | :--- | :--- | :--- |\n`;
+      inactives.forEach((m, idx) => {
+        md += `| ${idx + 1} | **${m.name}** | ${m.branch || "—"} | ${m.parish || "—"} | \`${m.contact || "—"}\` | ${m.note || "Tạm ngưng"} |\n`;
+      });
+      return md;
+    }
+
+    case "get_grade_outliers_and_anomalies": {
+      let md = `### ⚠️ Cảnh báo Điểm số Bất thường Cần Lưu Ý\n\n`;
+      const anomalies = d.anomalies || [];
+      if (anomalies.length === 0) return md + "Không phát hiện điểm số bất thường nào trong kỳ.";
+      md += `| Họ và tên | Ngành | Môn học | Điểm số | Lý do cảnh báo |\n`;
+      md += `| :--- | :---: | :--- | :---: | :--- |\n`;
+      anomalies.forEach((a) => {
+        md += `| **${a.name}** | ${a.branch} | ${a.subject || a.category} | **${a.score}** | ${a.reason} |\n`;
+      });
+      return md;
+    }
+
+    case "get_session_detailed_history": {
+      let md = `### 📝 Nhật ký Chi tiết Buổi Sinh hoạt\n\n`;
+      md += `- **Ngày sinh hoạt:** **${d.date || "—"}** | **Ngành:** **Ngành ${d.branch || "—"}**\n`;
+      md += `- **Người điểm danh:** **${d.markedBy || "—"}**\n`;
+      md += `- **Thống kê:** Hiện diện: **${d.presentCount || 0}** | Vắng không phép: **${d.absentCount || 0}** | Vắng phép: **${d.excusedCount || 0}** | Trễ: **${d.lateCount || 0}**\n\n`;
+      if (d.absentList && d.absentList.length > 0) {
+        md += `#### ⚠️ Danh sách vắng / trễ:\n\n`;
+        md += `| STT | Họ và tên | Tình trạng | Lý do / Ghi chú | SĐT Ba Mẹ |\n`;
+        md += `| :---: | :--- | :---: | :--- | :--- |\n`;
+        d.absentList.forEach((a, idx) => {
+          md += `| ${idx + 1} | **${a.name}** | ${a.status} | ${a.note || "—"} | \`${a.contact || "—"}\` |\n`;
+        });
+      }
+      return md;
+    }
+
+    case "get_attendance_by_day_of_week": {
+      let md = `### 📊 Phân tích Chuyên cần theo Ngày trong Tuần\n\n`;
+      const days = d.days || d.stats || [];
+      md += `| Ngày trong tuần | Số buổi tổ chức | Tỷ lệ chuyên cần TB | Đánh giá |\n`;
+      md += `| :--- | :---: | :---: | :--- |\n`;
+      days.forEach((day) => {
+        md += `| **${day.dayName}** | ${day.sessionCount} buổi | **${day.attendanceRate}** | ${day.note || "Ổn định"} |\n`;
+      });
+      return md;
+    }
+
+    case "get_unassigned_members_and_leaders": {
+      let md = `### 🔍 Rà soát Nhân sự Chưa Phân Công / Chưa Xếp Đội\n\n`;
+      if (d.unassignedMembers && d.unassignedMembers.length > 0) {
+        md += `#### 👥 Đoàn sinh chưa xếp Chi đoàn/Đội (${d.unassignedMembers.length} em):\n\n`;
+        md += `| STT | Họ và tên | Ngành | Xã đạo | SĐT liên hệ |\n`;
+        md += `| :---: | :--- | :---: | :--- | :--- |\n`;
+        d.unassignedMembers.slice(0, 20).forEach((m, idx) => {
+          md += `| ${idx + 1} | **${m.name}** | ${m.branch} | ${m.parish || "—"} | \`${m.contact || "—"}\` |\n`;
+        });
+      }
+      if (d.unassignedLeaders && d.unassignedLeaders.length > 0) {
+        md += `\n#### ⭐ Trưởng chưa gán Ngành phụ trách (${d.unassignedLeaders.length} người):\n\n`;
+        md += `| STT | Họ và tên | Email | Vai trò |\n`;
+        md += `| :---: | :--- | :--- | :--- |\n`;
+        d.unassignedLeaders.forEach((l, idx) => {
+          md += `| ${idx + 1} | **${l.name}** | \`${l.email || "—"}\` | ${l.role || "Trưởng"} |\n`;
+        });
+      }
+      return md;
+    }
+
+    case "get_comprehensive_member_audit_card": {
+      let md = `### 🪪 Thẻ Kiểm Toán Toàn Diện 360° Đoàn Sinh\n\n`;
+      const m = d.member || d;
+      md += `#### 👤 **${m.name}** (Mã ĐS: **${m.id}** - Ngành **${m.branch}** - Đội: **${m.group || "Chưa xếp"}**)\n`;
+      md += `- **Ngày sinh:** ${m.birthDate || "*(Chưa cập nhật)*"} | **Giới tính:** ${m.gender || "—"}\n`;
+      md += `- **Xã đạo:** ${m.parish || "—"} | **Họ Đạo:** ${m.church || "—"}\n`;
+      md += `- **Phụ huynh:** Cha: **${m.fatherName || "—"}** - Mẹ: **${m.motherName || "—"}**\n`;
+      md += `- **SĐT liên hệ:** \`${m.contact || "—"}\` | **Địa chỉ:** ${m.address || "—"}\n`;
+      md += `- **Năm gia nhập:** ${m.startYear || "—"}\n\n`;
+
+      if (d.yearlyAttendance) {
+        md += `#### 📈 Chuyên cần Cả Năm: **${d.yearlyAttendance.rate || "—"}** (Điểm CC: **${d.yearlyAttendance.score || "—"}/10**)\n`;
+      }
+      if (d.quarterGrades && d.quarterGrades.length > 0) {
+        md += `#### 📚 Bảng Điểm 4 Quý:\n\n`;
+        md += `| Quý / Năm | Điểm TB | Điểm Chuyên cần | Điểm Hoạt động | Xếp loại |\n`;
+        md += `| :---: | :---: | :---: | :---: | :---: |\n`;
+        d.quarterGrades.forEach((g) => {
+          md += `| **Quý ${g.quarter}/${g.year}** | **${g.avgScore || "—"}** | ${g.attendanceScore || "—"} | ${g.activityScore || "—"} | **${g.rank || "—"}** |\n`;
+        });
+      }
+      return md;
+    }
+
+    case "get_attendance_trend": {
+      let md = `### 📈 Xu hướng Chuyên cần theo Tuần (${d.branch === "all" ? "Toàn đoàn" : "Ngành " + d.branch})\n\n`;
+      const trend = d.trend || d.weeklyTrend || [];
+      md += `| Tuần / Buổi | Ngày sinh hoạt | Tỷ lệ hiện diện | Số vắng | Ghi chú |\n`;
+      md += `| :---: | :---: | :---: | :---: | :--- |\n`;
+      trend.forEach((t) => {
+        md += `| **Tuần ${t.week || t.sessionNumber || "—"}** | ${t.date || "—"} | **${t.attendanceRate || t.rate || "—"}** | ${t.absentCount || 0} em | ${t.note || "Ổn định"} |\n`;
+      });
+      return md;
+    }
+
+    case "get_session_attendance_details": {
+      let md = `### 📋 Chi tiết Điểm danh các Buổi Sinh hoạt Gần Đây\n\n`;
+      const sessions = d.sessions || [];
+      sessions.forEach((s) => {
+        md += `#### 📅 Buổi ngày ${s.date} (Ngành ${s.branch})\n`;
+        md += `- Hiện diện: **${s.presentCount || 0} em** | Vắng phép: ${s.excusedCount || 0} | Vắng không phép: ${s.absentCount || 0} | Trễ: ${s.lateCount || 0}\n`;
+        if (s.absentees && s.absentees.length > 0) {
+          md += `- Danh sách vắng/trễ: ${s.absentees.map(a => "**" + a.name + "** (" + a.status + ")").join(", ")}\n`;
+        }
+        md += `\n`;
+      });
       return md;
     }
 
@@ -2840,6 +4564,7 @@ async function processChatMessage({ message, history = [], userContext }) {
           functionResponse: {
             name: call.name,
             response: { result: toolResult },
+            ...(call.id ? { id: call.id } : {}),
           },
         });
       }
@@ -2864,21 +4589,42 @@ async function processChatMessage({ message, history = [], userContext }) {
         },
       };
 
-      const secondRes = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelUsed}:generateContent?key=${GEMINI_API_KEY}`,
-        secondTurnPayload,
-        {
-          headers: { "Content-Type": "application/json" },
-          timeout: 65000,
-        }
-      );
+      let reply = "";
+      try {
+        const secondRes = await axios.post(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelUsed}:generateContent?key=${GEMINI_API_KEY}`,
+          secondTurnPayload,
+          {
+            headers: { "Content-Type": "application/json" },
+            timeout: 45000,
+          }
+        );
 
-      const finalCandidate = secondRes.data?.candidates?.[0];
-      const textParts = finalCandidate?.content?.parts?.filter((p) => p.text).map((p) => p.text) || [];
-      let reply = textParts.join("\n\n").trim();
+        const finalCandidate = secondRes.data?.candidates?.[0];
+        const textParts = finalCandidate?.content?.parts?.filter((p) => p.text).map((p) => p.text) || [];
+        reply = textParts.join("\n\n").trim();
+      } catch (secondErr) {
+        console.warn(`⚠️ Second turn for ${modelUsed} failed (${secondErr?.response?.status}): ${secondErr.message}. Synthesizing directly from tool results...`);
+        // Failover: thử gọi model thứ hai nếu còn trong danh sách
+        const backupModel = GEMINI_MODELS_TO_TRY.find((m) => m !== modelUsed);
+        if (backupModel) {
+          try {
+            const backupRes = await axios.post(
+              `https://generativelanguage.googleapis.com/v1beta/models/${backupModel}:generateContent?key=${GEMINI_API_KEY}`,
+              secondTurnPayload,
+              { headers: { "Content-Type": "application/json" }, timeout: 45000 }
+            );
+            const bCandidate = backupRes.data?.candidates?.[0];
+            const bParts = bCandidate?.content?.parts?.filter((p) => p.text).map((p) => p.text) || [];
+            reply = bParts.join("\n\n").trim();
+          } catch (e2) {
+            console.warn(`⚠️ Backup model ${backupModel} also failed. Using tool formatter.`);
+          }
+        }
+      }
 
       if (!reply) {
-        console.warn("⚠️ Gemini returned empty text after tool call. Synthesizing from tool result directly.");
+        console.warn("⚠️ Synthesizing reply directly from tool results.");
         reply = (lastToolName && lastToolResult)
           ? formatToolResultToMarkdown(lastToolName, lastToolResult)
           : await generateFallbackResponse(trimmedMessage, userContext);
@@ -2915,33 +4661,52 @@ async function processChatMessage({ message, history = [], userContext }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function getQuickSuggestions(userContext) {
   const isBranchLeader = userContext?.role !== "admin" && userContext?.branch;
-  const branchName = userContext?.branch ? `Ngành ${userContext.branch}` : "Ngành";
+  const branchName = userContext?.branch ? "Ngành " + userContext.branch : "Ngành";
 
-  if (isBranchLeader) {
-    return [
+  return {
+    parents: [
+      "Bé 8 tuổi học ngành nào, ai phụ trách?",
+      "Giờ sinh hoạt Chúa Nhật và quy định đồng phục",
+      "Học phí và cách thức đăng ký tham gia",
+      "Xin phép nghỉ học cho con thì nhắn cho ai?",
+      "Số điện thoại Trưởng phụ trách các ngành",
+    ],
+    newcomers: [
+      "Gia Đình Hưng Đạo Trung Nam là gì?",
+      "Bốn tôn chỉ của Thiếu Nhi Thánh Thể là gì?",
+      "Ý nghĩa màu khăn các ngành Đồng, Thiếu, Thanh",
+      "Có hoạt động cắm trại, dã ngoại không?",
+      "Ngày Lễ Bổn mạng Gia Đình Hưng Đạo",
+    ],
+    leaders: isBranchLeader ? [
       `Tóm tắt tình hình ${branchName} Quý này`,
-      `Kế hoạch chương trình sinh hoạt ${branchName} Quý này`,
-      `Top 5 đoàn sinh điểm cao nhất ${branchName}`,
-      `Có những em nào trong ${branchName} vắng nhiều?`,
-      `Đoàn sinh ở xã đạo nào nhiều nhất?`,
-      `Chi tiết điểm danh buổi sinh hoạt gần nhất`,
-      `Xem cấu hình hệ số môn học`,
-    ];
-  }
-
-  return [
-    "Tóm tắt tình hình Gia Đình Hưng Đạo Trung Nam Quý này",
-    "Tiến độ kế hoạch chương trình sinh hoạt các Ngành",
-    "Đoàn sinh ở xã đạo nào nhiều nhất?",
-    "So sánh tỷ lệ chuyên cần giữa các Ngành",
-    "Danh sách đoàn sinh xuất sắc nhất",
-    "Những đoàn sinh thuộc diện cảnh báo nguy cơ",
-    "Chi tiết điểm danh buổi sinh hoạt gần nhất",
-    "Danh bạ trưởng và BQT",
-  ];
+      `Những em nào trong ${branchName} vắng nhiều cần thăm hỏi?`,
+      `Ai có sinh nhật trong 30 ngày tới?`,
+      `Tiến độ kế hoạch bài học ${branchName} Quý này`,
+      `Top đoàn sinh điểm cao nhất ${branchName}`,
+    ] : [
+      "Tóm tắt tình hình Gia Đình Hưng Đạo Quý này",
+      "Những đoàn sinh vắng nhiều cần thăm hỏi",
+      "Ai có sinh nhật trong 30 ngày tới?",
+      "So sánh tỷ lệ chuyên cần giữa các Ngành",
+      "Danh bạ số điện thoại liên lạc khẩn cấp phụ huynh",
+    ],
+    general: [
+      "Bé 8 tuổi học ngành nào, ai phụ trách?",
+      "Giờ sinh hoạt Chúa Nhật và quy định đồng phục",
+      "Những đoàn sinh vắng nhiều cần thăm hỏi",
+      "Học phí và cách thức đăng ký tham gia",
+      "Số điện thoại Trưởng phụ trách các ngành",
+      "Ai có sinh nhật trong 30 ngày tới?",
+    ],
+  };
 }
 
 module.exports = {
   processChatMessage,
   getQuickSuggestions,
+  executeTool,
+  toolDeclarations,
+  formatToolResultToMarkdown,
+  generateFallbackResponse,
 };

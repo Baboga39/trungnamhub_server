@@ -5,6 +5,7 @@ const auth = require("./authMiddleware");
 const upload = require("./upload");
 const { globalLimiter, authLimiter } = require("./rateLimiter");
 const { corsOptions } = require("./corsConfig");
+const asyncHandler = require("./asyncHandler");
 
 module.exports = {
   responseMiddleware,
@@ -15,4 +16,5 @@ module.exports = {
   globalLimiter,
   authLimiter,
   corsOptions,
+  asyncHandler,
 };

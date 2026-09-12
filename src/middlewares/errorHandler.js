@@ -8,7 +8,7 @@ function errorHandler(err, req, res, next) {
     statusCode,
     message,
     data: null,
-    error: err.stack || null,
+    error: process.env.NODE_ENV === "production" ? null : (err.stack || null),
   });
 }
 

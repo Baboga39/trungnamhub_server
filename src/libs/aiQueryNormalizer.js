@@ -605,6 +605,11 @@ function normalizeUserQuery(rawQuery) {
   text = text.replace(/\bthg\s*(1[0-2]|[1-9])\b/gi, "tháng $1");
   text = text.replace(/\bt(1[0-2]|[1-9])\b/gi, "tháng $1");
 
+  // 2.1. Chuẩn hóa cụm từ năm sinh, đoàn sinh năm (ví dụ: 'đoàn sinh 2012' -> 'đoàn sinh sinh năm 2012')
+  text = text.replace(/\bsn\s*(19\d\d|20\d\d)\b/gi, "sinh năm $1");
+  text = text.replace(/\b(đoàn sinh|doan sinh|các bạn|cac ban|mấy đứa|may dua)\s*(19\d\d|20\d\d)\b/gi, "$1 sinh năm $2");
+  text = text.replace(/\b(lớp|khoá|khóa)\s*(19\d\d|20\d\d)\b/gi, "đoàn sinh sinh năm $2");
+
   // 3. Khớp và bảo vệ thực thể động từ Database (Database-driven Entity Protection)
   const dbPlaceholders = [];
   let pIdx = 0;

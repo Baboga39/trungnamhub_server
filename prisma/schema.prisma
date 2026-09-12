@@ -67,6 +67,7 @@ model Member {
   @@index([userId])
   @@index([createdById])
   @@index([active])
+  @@index([branch, active])
 }
 
 model Attendance {
