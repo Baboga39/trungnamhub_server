@@ -61,6 +61,16 @@ async function getRisks(req, res, next) {
   }
 }
 
+async function getBirthdays(req, res, next) {
+  try {
+    const { year, quarter, branch } = req.query;
+    const result = await executiveDashboardService.getExecutiveBirthdays(req.user, { year, quarter, branch });
+    return res.ok(result, "Get executive birthdays success");
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ─────────── Public Dashboard Controllers (No Auth required) ───────────
 async function getPublicOverview(req, res, next) {
   try {
@@ -122,6 +132,16 @@ async function getPublicRisks(req, res, next) {
   }
 }
 
+async function getPublicBirthdays(req, res, next) {
+  try {
+    const { year, quarter, branch } = req.query;
+    const result = await executiveDashboardService.getExecutiveBirthdays(null, { year, quarter, branch });
+    return res.ok(result, "Get public executive birthdays success");
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   getOverview,
   getBranchPerformance,
@@ -129,10 +149,13 @@ module.exports = {
   getAttendanceTrend,
   getActivities,
   getRisks,
+  getBirthdays,
   getPublicOverview,
   getPublicBranchPerformance,
   getPublicTopMembers,
   getPublicAttendanceTrend,
   getPublicActivities,
   getPublicRisks,
+  getPublicBirthdays,
 };
+

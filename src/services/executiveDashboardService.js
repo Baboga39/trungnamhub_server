@@ -999,6 +999,171 @@ async function getExecutiveRiskMembers(user, { year, quarter, branch }) {
   return riskMembers;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. EXECUTIVE QUARTERLY BIRTHDAYS
+// ─────────────────────────────────────────────────────────────────────────────
+async function getExecutiveBirthdays(user, { year, quarter, branch }) {
+  const y = Number(year) || new Date().getFullYear();
+  const q = Number(quarter) || Math.floor(new Date().getMonth() / 3) + 1;
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentDay = now.getDate();
+
+  const branchFilter = getEffectiveBranchFilter(user, branch);
+  const normBranch = branchFilter.branch || null;
+
+  const quarterMonths = [(q - 1) * 3 + 1, (q - 1) * 3 + 2, (q - 1) * 3 + 3];
+
+  const memberWhere = {
+    active: true,
+    birthDate: { not: null },
+    ...branchFilter,
+  };
+
+  const userWhere = {
+    active: true,
+    birthDate: { not: null },
+  };
+
+  if (normBranch) {
+    userWhere.OR = [
+      { branch: normBranch },
+      { branch: null },
+      { branch: "" },
+    ];
+  }
+
+  const [members, users] = await Promise.all([
+    prisma.member.findMany({
+      where: memberWhere,
+      select: {
+        id: true,
+        name: true,
+        birthDate: true,
+        gender: true,
+        parish: true,
+        church: true,
+        branch: true,
+        group: true,
+      },
+    }),
+    prisma.user.findMany({
+      where: userWhere,
+      select: {
+        id: true,
+        name: true,
+        birthDate: true,
+        branch: true,
+        role: true,
+      },
+    }),
+  ]);
+
+  const matchingMembers = [];
+
+  for (const m of members) {
+    if (!m.birthDate) continue;
+    const bDate = new Date(m.birthDate);
+    const bMonth = bDate.getMonth() + 1;
+    const bDay = bDate.getDate();
+    const bYear = bDate.getFullYear();
+
+    if (quarterMonths.includes(bMonth)) {
+      const age = bYear ? y - bYear : null;
+      const isToday = bMonth === currentMonth && bDay === currentDay;
+      const isThisMonth = bMonth === currentMonth;
+      const formattedDate = `${String(bDay).padStart(2, "0")}/${String(bMonth).padStart(2, "0")}`;
+
+      matchingMembers.push({
+        id: m.id,
+        fullName: m.name,
+        birthDate: m.birthDate,
+        birthDay: bDay,
+        birthMonth: bMonth,
+        birthYear: bYear,
+        formattedDate,
+        age,
+        parish: m.parish || "",
+        church: m.church || "",
+        branch: m.branch || "",
+        group: m.group || "",
+        gender: m.gender || "",
+        isLeader: false,
+        role: "Đoàn sinh",
+        isToday,
+        isThisMonth,
+      });
+    }
+  }
+
+  for (const u of users) {
+    if (!u.birthDate) continue;
+    const bDate = new Date(u.birthDate);
+    const bMonth = bDate.getMonth() + 1;
+    const bDay = bDate.getDate();
+    const bYear = bDate.getFullYear();
+
+    if (quarterMonths.includes(bMonth)) {
+      const age = bYear ? y - bYear : null;
+      const isToday = bMonth === currentMonth && bDay === currentDay;
+      const isThisMonth = bMonth === currentMonth;
+      const formattedDate = `${String(bDay).padStart(2, "0")}/${String(bMonth).padStart(2, "0")}`;
+
+      matchingMembers.push({
+        id: `user-${u.id}`,
+        userId: u.id,
+        fullName: u.name,
+        birthDate: u.birthDate,
+        birthDay: bDay,
+        birthMonth: bMonth,
+        birthYear: bYear,
+        formattedDate,
+        age,
+        parish: u.role === "admin" ? "Ban Quản Trị" : (u.role || "Trưởng"),
+        church: u.branch ? `Ngành ${u.branch}` : "Ban Quản Trị",
+        branch: u.branch || "BQT",
+        group: u.role || "Trưởng",
+        gender: "",
+        isLeader: true,
+        role: u.role === "admin" ? "Ban Quản Trị" : (u.role || "Huynh Trưởng"),
+        isToday,
+        isThisMonth,
+      });
+    }
+  }
+
+  // Sort by birthMonth, then birthDay
+  matchingMembers.sort((a, b) => {
+    if (a.birthMonth !== b.birthMonth) {
+      return a.birthMonth - b.birthMonth;
+    }
+    return a.birthDay - b.birthDay;
+  });
+
+  const byMonth = quarterMonths.map((m) => {
+    const monthMembers = matchingMembers.filter((item) => item.birthMonth === m);
+    return {
+      month: m,
+      monthName: `Tháng ${m}`,
+      count: monthMembers.length,
+      members: monthMembers,
+    };
+  });
+
+  return {
+    quarter: q,
+    year: y,
+    branch: normBranch || "all",
+    quarterMonths,
+    total: matchingMembers.length,
+    leaderCount: matchingMembers.filter((item) => item.isLeader).length,
+    memberCount: matchingMembers.filter((item) => !item.isLeader).length,
+    todayCount: matchingMembers.filter((item) => item.isToday).length,
+    byMonth,
+    members: matchingMembers,
+  };
+}
+
 module.exports = {
   getExecutiveOverview,
   getExecutiveBranchPerformance,
@@ -1006,4 +1171,6 @@ module.exports = {
   getExecutiveAttendanceTrend,
   getExecutiveActivities,
   getExecutiveRiskMembers,
+  getExecutiveBirthdays,
 };
+

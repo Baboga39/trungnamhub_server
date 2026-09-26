@@ -59,8 +59,8 @@ async function getRiskMembers(req, res, next) {
 
 async function getQuarterlyBirthdays(req, res, next) {
   try {
-    const { quarter, year } = req.query;
-    const result = await services.dashboardService.getQuarterlyBirthdays(req.user, quarter, year);
+    const { quarter, year, branch } = req.query;
+    const result = await services.dashboardService.getQuarterlyBirthdays(req.user, { quarter, year, branch });
     return res.ok(result, "Get quarterly birthdays success");
   } catch (err) {
     next(err);
