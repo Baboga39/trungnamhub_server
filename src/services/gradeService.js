@@ -154,8 +154,18 @@ async function upSertScore(data) {
     throw new Error("scores must be an array");
   }
 
-  return prisma.$transaction(
-    scores.map((s) =>
+  // Chuyên cần là điểm tự động tính từ lịch sử điểm danh, không cho ghi đè thủ công
+  const attendanceCategory = await prisma.gradeCategory.findFirst({
+    where: { name: "Chuyên cần" },
+    select: { id: true },
+  });
+
+  const filteredScores = attendanceCategory
+    ? scores.filter((s) => Number(s.categoryId) !== attendanceCategory.id)
+    : scores;
+
+  const result = await prisma.$transaction(
+    filteredScores.map((s) =>
       prisma.grade.upsert({
         where: {
           memberId_categoryId_year_quarter: {
@@ -178,6 +188,11 @@ async function upSertScore(data) {
       }),
     ),
   );
+
+  // Đảm bảo điểm Chuyên cần được đồng bộ/tính đúng theo điểm danh
+  await updateAttendanceScore(Number(memberId), Number(year), Number(quarter));
+
+  return result;
 }
 function getQuarter(date) {
   return Math.floor(date.getMonth() / 3) + 1;
@@ -195,8 +210,8 @@ function getCurrentEvaluationQuarters() {
 
 async function updateAttendanceScore(memberId, year, quarter) {
   const startMonth = (quarter - 1) * 3;
-  const startDate = new Date(year, startMonth, 1);
-  const endDate = new Date(year, startMonth + 3, 0);
+  const startDate = new Date(year, startMonth, 1, 0, 0, 0);
+  const endDate = new Date(year, startMonth + 3, 0, 23, 59, 59, 999);
 
   // Lấy thông tin ngành của member
   const member = await prisma.member.findUnique({
