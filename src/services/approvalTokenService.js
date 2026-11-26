@@ -3,6 +3,7 @@
 const prisma = require("../libs/prisma");
 const crypto = require("crypto");
 const { sendApprovalMail } = require("./mailService/mailService");
+const { sendNotification } = require("../libs/notifyClient");
 
 
 function generateToken() {
@@ -115,6 +116,17 @@ async function handleApprovalCore({ tx, document, tokenData, action, comment }) 
       tx
     );
 
+    sendNotification({
+      eventType: "DOCUMENT_APPROVAL",
+      title: "Văn bản cần chỉnh sửa",
+      message: `Văn bản "${document.title}" bị từ chối${comment ? `: ${comment}` : "."}`,
+      severity: "warning",
+      actionUrl: "/documents",
+      targetUserIds: document.createdById ? [document.createdById] : [],
+      actorUserId: tokenData.reviewerId,
+      excludeActor: false,
+    });
+
     return { success: true, status: "NEED_REVISION" };
   }
 
@@ -132,6 +144,17 @@ async function handleApprovalCore({ tx, document, tokenData, action, comment }) 
       },
       tx
     );
+
+    sendNotification({
+      eventType: "DOCUMENT_APPROVAL",
+      title: "Văn bản đã được duyệt",
+      message: `Văn bản "${document.title}" đã được phê duyệt hoàn tất.`,
+      severity: "success",
+      actionUrl: "/documents",
+      targetUserIds: document.createdById ? [document.createdById] : [],
+      actorUserId: tokenData.reviewerId,
+      excludeActor: false,
+    });
 
     return { success: true, status: "APPROVED" };
   }
@@ -236,6 +259,17 @@ async function createApprovalToken(documentId, reviewerIds, senderUser, tx = pri
       }).catch((err) => console.error("Lỗi khi gửi email:", err));
     }
   }
+
+  sendNotification({
+    eventType: "DOCUMENT_APPROVAL",
+    title: "Yêu cầu duyệt văn bản mới",
+    message: `${senderUser?.name || "Hệ thống"} đã gửi văn bản "${document.title}" chờ bạn duyệt.`,
+    severity: "info",
+    actionUrl: "/documents",
+    targetUserIds: reviewerIds.map(Number).filter(Boolean),
+    actorUserId: senderUser?.userId,
+    excludeActor: true,
+  });
 
   return {
     count: result.count,

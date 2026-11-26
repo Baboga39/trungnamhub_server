@@ -1,5 +1,6 @@
 const { parseDate } = require("../libs/parseDate");
 const prisma = require("../libs/prisma");
+const { sendNotification } = require("../libs/notifyClient");
 
 function normalizeBranch(branch) {
   return branch?.trim().normalize("NFC");
@@ -108,6 +109,24 @@ async function upsertMember(data, user) {
     });
 
     await saveStatusHistory(tx, oldMember, updated);
+
+    const isPromoted =
+      (oldMember.branch && updated.branch && oldMember.branch !== updated.branch) ||
+      (!oldMember.promotionDate && Boolean(updated.promotionDate));
+
+    if (isPromoted) {
+      const branches = Array.from(new Set([oldMember.branch, updated.branch].filter(Boolean)));
+      sendNotification({
+        eventType: "MEMBER_PROMOTION",
+        title: "Bàn giao lên ngành mới",
+        message: `Đoàn sinh ${updated.name} đã lên ngành${oldMember.branch ? ` từ ${oldMember.branch}` : ""} sang ${updated.branch || "ngành mới"}.`,
+        severity: "success",
+        actionUrl: "/members",
+        targetBranches: branches,
+        actorUserId: user?.userId,
+        excludeActor: true,
+      });
+    }
 
     return mapMemberStatus(updated);
   });

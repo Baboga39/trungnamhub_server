@@ -4,6 +4,7 @@ const {
   getRank,
 } = require("../libs/scoreCalculator");
 const { buildBranchFilter } = require("./member.service");
+const { sendNotification } = require("../libs/notifyClient");
 
 async function getAllGrades(user) {
   const branchFilter = buildBranchFilter(user);
@@ -191,6 +192,30 @@ async function upSertScore(data) {
 
   // Đảm bảo điểm Chuyên cần được đồng bộ/tính đúng theo điểm danh
   await updateAttendanceScore(Number(memberId), Number(year), Number(quarter));
+
+  // Fire-and-forget: cảnh báo nếu có điểm < 5.0 (ngưỡng Yếu / Cần nhắc nhở)
+  const lowScores = filteredScores.filter((s) => Number(s.score) < 5.0);
+  if (lowScores.length > 0) {
+    prisma.member
+      .findUnique({
+        where: { id: Number(memberId) },
+        select: { name: true, branch: true },
+      })
+      .then((member) => {
+        if (!member) return;
+        const minScore = Math.min(...lowScores.map((s) => Number(s.score)));
+        return sendNotification({
+          eventType: "GRADE_ALERT",
+          title: `Cảnh báo điểm thấp (${member.branch || "Chung"})`,
+          message: `Đoàn sinh ${member.name} có điểm Q${quarter}/${year} dưới 5.0 (thấp nhất: ${minScore}). Cần quan tâm hỗ trợ.`,
+          severity: "warning",
+          actionUrl: "/score",
+          targetBranches: member.branch ? [member.branch] : [],
+          excludeActor: false,
+        });
+      })
+      .catch(() => {});
+  }
 
   return result;
 }

@@ -3,6 +3,7 @@ const prisma = require("../libs/prisma");
 const sessionService = require("./sessionService");
 const { updateAttendanceScore, recalculateAllAttendanceScores } = require("./gradeService");
 const { buildBranchFilter } = require("./member.service");
+const { sendNotification } = require("../libs/notifyClient");
 
 
 function validateRecordsFormat(recordsByDate) {
@@ -154,6 +155,54 @@ async function markAttendance(user, recordsByDate) {
 
     await recalculateAllAttendanceScores(parsedDate);
   }
+
+  // Fire-and-forget: check consecutive absences (>= 2) for newly marked absent members
+  (async () => {
+    const absentResults = results.filter((r) => {
+      const s = String(r.status || "").toLowerCase();
+      return s === "absent" || s === "vang";
+    });
+    if (!absentResults.length) return;
+
+    const checkedMemberIds = Array.from(new Set(absentResults.map((r) => r.memberId)));
+    const flaggedByBranch = new Map();
+
+    for (const mId of checkedMemberIds) {
+      const recent = await prisma.attendance.findMany({
+        where: { memberId: mId },
+        orderBy: { date: "desc" },
+        take: 2,
+        include: { member: { select: { name: true, branch: true } } },
+      });
+      if (
+        recent.length >= 2 &&
+        recent.every((r) => {
+          const s = String(r.status || "").toLowerCase();
+          return s === "absent" || s === "vang";
+        })
+      ) {
+        const branch = recent[0]?.member?.branch || user?.branch || "Chung";
+        const name = recent[0]?.member?.name || `Đoàn sinh #${mId}`;
+        if (!flaggedByBranch.has(branch)) flaggedByBranch.set(branch, []);
+        flaggedByBranch.get(branch).push(name);
+      }
+    }
+
+    for (const [branch, names] of flaggedByBranch.entries()) {
+      const preview = names.slice(0, 3).join(", ");
+      const extra = names.length > 3 ? ` và ${names.length - 3} em khác` : "";
+      await sendNotification({
+        eventType: "ATTENDANCE_ALERT",
+        title: `Cảnh báo vắng liên tiếp (${branch})`,
+        message: `${preview}${extra} đã vắng 2+ buổi liên tiếp. Cần liên hệ gia đình.`,
+        severity: "warning",
+        actionUrl: "/attendance",
+        targetBranches: branch === "Chung" ? [] : [branch],
+        actorUserId: user?.userId,
+        excludeActor: false,
+      });
+    }
+  })().catch(() => {});
 
   return results;
 }
